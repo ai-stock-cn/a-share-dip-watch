@@ -326,8 +326,7 @@ function escapeHtml(value) {
 }
 
 function stockQuoteUrl(code) {
-  const exchange = /^[569]/.test(code) ? "sh" : "sz";
-  return `https://quote.eastmoney.com/${exchange}${code}.html`;
+  return `https://stockpage.10jqka.com.cn/${code}/`;
 }
 
 function metricFor(quote) {
@@ -379,7 +378,7 @@ function rowTemplate(quote) {
     <tr data-code="${escapeHtml(quote.code)}">
       <td>
         <div class="stock-name">
-          <a class="stock-name-link" href="${escapeHtml(quoteUrl)}" target="_blank" rel="noopener noreferrer" title="在东方财富查看 ${escapeHtml(quote.name)} K线" aria-label="在东方财富查看 ${escapeHtml(quote.name)} K线">
+          <a class="stock-name-link" href="${escapeHtml(quoteUrl)}" target="_blank" rel="noopener noreferrer" title="在同花顺查看 ${escapeHtml(quote.name)} 行情" aria-label="在同花顺查看 ${escapeHtml(quote.name)} 行情">
             <span class="stock-link-label">${escapeHtml(quote.name)}</span>
             <span class="external-link-mark" aria-hidden="true">↗</span>
           </a>
