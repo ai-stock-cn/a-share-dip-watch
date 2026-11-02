@@ -403,12 +403,39 @@ td.numeric {
   white-space: nowrap;
 }
 
-.stock-code,
-.metric-note {
+.stock-meta {
   margin-top: 4px;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.stock-code,
+.price-track,
+.metric-note {
   color: var(--ink-muted);
   font-size: 11px;
   line-height: 1.25;
+}
+
+.price-track,
+.metric-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.price-track.low {
+  color: var(--moderate);
+}
+
+.price-track.high {
+  color: var(--positive);
+}
+
+.metric-note {
+  margin-top: 4px;
 }
 
 .metric {

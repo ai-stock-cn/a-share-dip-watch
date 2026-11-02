@@ -21,7 +21,9 @@ MARKET_PATH = DATA_DIR / "market.json"
 DIVIDEND_PATH = DATA_DIR / "dividends.json"
 CODES_PATH = DATA_DIR / "codes.json"
 EXPECTED_UNIVERSE_SIZE = 115
-HISTORY_LIMIT = 100
+HISTORY_LIMIT = 280
+WEEKLY_HISTORY_LIMIT = 600
+HISTORICAL_DIVIDEND_YEARS = 10
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 USER_AGENT = "Mozilla/5.0 (compatible; AShareDipWatch/1.0; +https://github.com/)"
 
@@ -150,20 +152,26 @@ def fetch_quotes(
 
 def fetch_three_month_metrics(
     stocks: dict[str, dict], quote_timestamp: datetime | None
-) -> dict[str, dict[str, float | str | None]]:
+) -> dict[str, dict]:
     quote_day = (
         quote_timestamp.date()
         if quote_timestamp
         else datetime.now(ZoneInfo("Asia/Shanghai")).date()
     )
     history_inputs = load_history_inputs_from_cache(sorted(stocks), quote_day.isoformat())
+    annual_low_cache = load_annual_low_cache(sorted(stocks))
     missing_codes = [code for code in sorted(stocks) if code not in history_inputs]
 
     if missing_codes:
         completed = 0
         with ThreadPoolExecutor(max_workers=6) as executor:
             futures = {
-                executor.submit(fetch_history_input, code, quote_day): code
+                executor.submit(
+                    fetch_history_input,
+                    code,
+                    quote_day,
+                    annual_low_cache.get(code),
+                ): code
                 for code in missing_codes
             }
             for future in as_completed(futures):
@@ -187,7 +195,7 @@ def fetch_three_month_metrics(
             f"{len(stocks)} rows"
         )
 
-    metrics: dict[str, dict[str, float | str | None]] = {}
+    metrics: dict[str, dict] = {}
     for code, history in history_inputs.items():
         baseline_close = number_or_none(history.get("threeMonthBaseClose"))
         if baseline_close is None:
@@ -198,6 +206,31 @@ def fetch_three_month_metrics(
             if current_price is not None and baseline_close > 0
             else None
         )
+        price_low_1y = number_or_none(history.get("priceLow1y"))
+        price_high_1y = number_or_none(history.get("priceHigh1y"))
+        price_track_position = None
+        price_track_band = None
+        if (
+            current_price is not None
+            and price_low_1y is not None
+            and price_high_1y is not None
+            and price_high_1y > price_low_1y
+        ):
+            price_track_position = max(
+                0.0,
+                min(
+                    100.0,
+                    (current_price - price_low_1y)
+                    / (price_high_1y - price_low_1y)
+                    * 100,
+                ),
+            )
+            if price_track_position < 33.3333:
+                price_track_band = "low"
+            elif price_track_position < 66.6667:
+                price_track_band = "middle"
+            else:
+                price_track_band = "high"
         metrics[code] = {
             "threeMonthChangePct": (
                 round(three_month_change, 4)
@@ -206,6 +239,15 @@ def fetch_three_month_metrics(
             ),
             "maxDailyDecline3m": history["maxDailyDecline3m"],
             "threeMonthBaseClose": baseline_close,
+            "priceLow1y": price_low_1y,
+            "priceHigh1y": price_high_1y,
+            "priceTrackPosition1y": (
+                round(price_track_position, 2)
+                if price_track_position is not None
+                else None
+            ),
+            "priceTrackBand1y": price_track_band,
+            "annualLowPrices10y": history.get("annualLowPrices10y") or {},
             "historyAsOf": history["historyAsOf"],
         }
     return metrics
@@ -213,23 +255,40 @@ def fetch_three_month_metrics(
 
 def load_history_inputs_from_cache(
     codes: list[str], quote_day: str
-) -> dict[str, dict[str, float | str | None]]:
+) -> dict[str, dict]:
     if not MARKET_PATH.exists():
         return {}
     try:
         payload = json.loads(MARKET_PATH.read_text(encoding="utf-8"))
         cached_stocks = payload.get("stocks") or {}
-        cached: dict[str, dict[str, float | str | None]] = {}
+        cached: dict[str, dict] = {}
         for code in codes:
             stock = cached_stocks.get(code) or {}
             baseline = number_or_none(stock.get("threeMonthBaseClose"))
-            if stock.get("historyAsOf") != quote_day or baseline is None:
+            price_low = number_or_none(stock.get("priceLow1y"))
+            price_high = number_or_none(stock.get("priceHigh1y"))
+            annual_lows = stock.get("annualLowPrices10y")
+            if (
+                stock.get("historyAsOf") != quote_day
+                or baseline is None
+                or price_low is None
+                or price_high is None
+                or not isinstance(annual_lows, dict)
+                or not annual_lows
+            ):
                 continue
             cached[code] = {
                 "threeMonthBaseClose": baseline,
                 "maxDailyDecline3m": number_or_none(
                     stock.get("maxDailyDecline3m")
                 ),
+                "priceLow1y": price_low,
+                "priceHigh1y": price_high,
+                "annualLowPrices10y": {
+                    str(year): float(value)
+                    for year, value in annual_lows.items()
+                    if number_or_none(value) is not None
+                },
                 "historyAsOf": quote_day,
             }
         if cached:
@@ -239,9 +298,30 @@ def load_history_inputs_from_cache(
         return {}
 
 
+def load_annual_low_cache(codes: list[str]) -> dict[str, dict[str, float]]:
+    if not MARKET_PATH.exists():
+        return {}
+    try:
+        payload = json.loads(MARKET_PATH.read_text(encoding="utf-8"))
+        cached_stocks = payload.get("stocks") or {}
+        cached: dict[str, dict[str, float]] = {}
+        for code in codes:
+            annual_lows = (cached_stocks.get(code) or {}).get("annualLowPrices10y")
+            if not isinstance(annual_lows, dict) or not annual_lows:
+                continue
+            cached[code] = {
+                str(year): float(value)
+                for year, value in annual_lows.items()
+                if number_or_none(value) is not None
+            }
+        return cached
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return {}
+
+
 def fetch_history_input(
-    code: str, quote_day
-) -> dict[str, float | str | None]:
+    code: str, quote_day, cached_annual_lows: dict[str, float] | None = None
+) -> dict:
     symbol = f"sh{code}" if code.startswith("6") else f"sz{code}"
     try:
         payload = request_json(
@@ -258,7 +338,17 @@ def fetch_history_input(
     except Exception:
         closes = fetch_sina_history_closes(symbol)
 
-    return history_input_from_closes(closes, quote_day)
+    annual_lows = dict(cached_annual_lows or {})
+    if not annual_lows:
+        annual_lows = fetch_sina_annual_low_prices(symbol)
+
+    current_year_closes = [
+        close for trade_date, close in closes if trade_date.year == quote_day.year
+    ]
+    if current_year_closes:
+        annual_lows[str(quote_day.year)] = round(min(current_year_closes), 4)
+
+    return history_input_from_closes(closes, quote_day, annual_lows)
 
 
 def history_closes_from_tencent(lines: list) -> list[tuple[datetime, float]]:
@@ -277,20 +367,9 @@ def history_closes_from_tencent(lines: list) -> list[tuple[datetime, float]]:
 
 
 def fetch_sina_history_closes(symbol: str) -> list[tuple[datetime, float]]:
-    body = request_text(
-        f"https://quotes.sina.cn/cn/api/jsonp_v2.php/var_{symbol}=/"
-        "CN_MarketDataService.getKLineData",
-        {"symbol": symbol, "scale": 240, "ma": "no", "datalen": HISTORY_LIMIT},
-        "utf-8",
-    )
-    match = re.search(r"=\((\[.*\])\);?\s*$", body, flags=re.DOTALL)
-    if not match:
-        raise RuntimeError("invalid Sina K-line response")
-    rows = json.loads(match.group(1))
+    rows = fetch_sina_history_rows(symbol, scale=240, datalen=HISTORY_LIMIT)
     closes: list[tuple[datetime, float]] = []
     for row in rows:
-        if not isinstance(row, dict):
-            continue
         try:
             trade_date = datetime.strptime(str(row.get("day")), "%Y-%m-%d")
         except ValueError:
@@ -303,9 +382,48 @@ def fetch_sina_history_closes(symbol: str) -> list[tuple[datetime, float]]:
     return closes
 
 
+def fetch_sina_annual_low_prices(symbol: str) -> dict[str, float]:
+    rows = fetch_sina_history_rows(
+        symbol,
+        scale=1200,
+        datalen=WEEKLY_HISTORY_LIMIT,
+    )
+    annual_lows: dict[str, float] = {}
+    for row in rows:
+        try:
+            year = str(datetime.strptime(str(row.get("day")), "%Y-%m-%d").year)
+        except ValueError:
+            continue
+        low = number_or_none(row.get("low"))
+        if low is None or low <= 0:
+            continue
+        annual_lows[year] = min(annual_lows.get(year, low), low)
+    if not annual_lows:
+        raise RuntimeError("insufficient Sina weekly K-line rows")
+    return {year: round(value, 4) for year, value in annual_lows.items()}
+
+
+def fetch_sina_history_rows(
+    symbol: str, scale: int, datalen: int
+) -> list[dict]:
+    body = request_text(
+        f"https://quotes.sina.cn/cn/api/jsonp_v2.php/var_{symbol}=/"
+        "CN_MarketDataService.getKLineData",
+        {"symbol": symbol, "scale": scale, "ma": "no", "datalen": datalen},
+        "utf-8",
+    )
+    match = re.search(r"=\((\[.*\])\);?\s*$", body, flags=re.DOTALL)
+    if not match:
+        raise RuntimeError("invalid Sina K-line response")
+    rows = json.loads(match.group(1))
+    return [row for row in rows if isinstance(row, dict)]
+
+
 def history_input_from_closes(
-    closes: list[tuple[datetime, float]], quote_day
-) -> dict[str, float | str | None]:
+    closes: list[tuple[datetime, float]],
+    quote_day,
+    annual_lows: dict[str, float],
+) -> dict:
 
     closes.sort(key=lambda row: row[0])
     if len(closes) < 3:
@@ -316,6 +434,11 @@ def history_input_from_closes(
     period_rows = [row for row in closes if row[0] >= cutoff]
     if len(period_rows) < 2:
         raise RuntimeError("insufficient three-month rows")
+
+    one_year_cutoff = latest_date - timedelta(days=370)
+    one_year_rows = [row for row in closes if row[0] >= one_year_cutoff]
+    if len(one_year_rows) < 20:
+        raise RuntimeError("insufficient one-year rows")
 
     daily_changes = [
         (closes[index][0], (closes[index][1] / closes[index - 1][1] - 1) * 100)
@@ -331,13 +454,16 @@ def history_input_from_closes(
         "maxDailyDecline3m": (
             round(min(prior_declines), 4) if prior_declines else None
         ),
+        "priceLow1y": round(min(close for _, close in one_year_rows), 4),
+        "priceHigh1y": round(max(close for _, close in one_year_rows), 4),
+        "annualLowPrices10y": annual_lows,
         "historyAsOf": quote_day.isoformat(),
     }
 
 
 def load_fresh_dividend_cache(
     fiscal_year: int, codes: list[str]
-) -> dict[str, float] | None:
+) -> tuple[dict[str, float], dict[str, dict[str, float]]] | None:
     if not DIVIDEND_PATH.exists():
         return None
     try:
@@ -349,18 +475,41 @@ def load_fresh_dividend_cache(
             and payload.get("codes") == codes
             and age < DIVIDEND_MAX_AGE_SECONDS
         ):
-            return {key: float(value) for key, value in payload["dividends"].items()}
+            annual_payload = payload.get("annualDividends")
+            if not isinstance(annual_payload, dict):
+                return None
+            totals = {
+                key: float(value) for key, value in payload["dividends"].items()
+            }
+            annual = {
+                code: {
+                    str(year): float(value)
+                    for year, value in years.items()
+                }
+                for code, years in annual_payload.items()
+                if isinstance(years, dict)
+            }
+            return totals, annual
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
         return None
     return None
 
 
-def fetch_dividends(fiscal_year: int, codes: list[str]) -> dict[str, float]:
+def fetch_dividends(
+    fiscal_year: int, codes: list[str]
+) -> tuple[dict[str, float], dict[str, dict[str, float]]]:
     cached = load_fresh_dividend_cache(fiscal_year, codes)
     if cached is not None:
         return cached
 
     totals: dict[str, float] = {code: 0.0 for code in codes}
+    annual: dict[str, dict[str, float]] = {code: {} for code in codes}
+    target_years = set(
+        range(
+            fiscal_year - HISTORICAL_DIVIDEND_YEARS + 1,
+            fiscal_year + 1,
+        )
+    )
     seen: set[tuple[str, str, str, str]] = set()
     found_target_year = False
 
@@ -387,9 +536,8 @@ def fetch_dividends(fiscal_year: int, codes: list[str]) -> dict[str, float]:
                 year = int(report_date[:4])
             except ValueError:
                 continue
-            if year != fiscal_year:
+            if year not in target_years:
                 continue
-            found_target_year = True
             code = str(row.get("SECURITY_CODE") or "")
             cash_per_ten = number_or_none(row.get("PRETAX_BONUS_RMB"))
             if len(code) != 6 or cash_per_ten is None or cash_per_ten <= 0:
@@ -403,7 +551,14 @@ def fetch_dividends(fiscal_year: int, codes: list[str]) -> dict[str, float]:
             if event_key in seen:
                 continue
             seen.add(event_key)
-            totals[code] = totals.get(code, 0.0) + cash_per_ten / 10
+            dividend_per_share = cash_per_ten / 10
+            year_key = str(year)
+            annual.setdefault(code, {})[year_key] = (
+                annual.get(code, {}).get(year_key, 0.0) + dividend_per_share
+            )
+            if year == fiscal_year:
+                found_target_year = True
+                totals[code] = totals.get(code, 0.0) + dividend_per_share
 
         if index % 10 == 0 or index == len(codes):
             payers = sum(value > 0 for value in totals.values())
@@ -424,9 +579,39 @@ def fetch_dividends(fiscal_year: int, codes: list[str]) -> dict[str, float]:
             "generatedAt": generated_at,
             "codes": codes,
             "dividends": {code: round(value, 8) for code, value in sorted(totals.items())},
+            "annualDividends": {
+                code: {
+                    year: round(value, 8)
+                    for year, value in sorted(years.items())
+                }
+                for code, years in sorted(annual.items())
+            },
         },
     )
-    return totals
+    return totals, annual
+
+
+def calculate_historical_max_dividend_yield(
+    annual_dividends: dict[str, float],
+    annual_low_prices: dict[str, float],
+    fiscal_year: int,
+) -> tuple[float | None, int | None]:
+    best_yield = None
+    best_year = None
+    first_year = fiscal_year - HISTORICAL_DIVIDEND_YEARS + 1
+    for year in range(first_year, fiscal_year + 1):
+        dividend = number_or_none(annual_dividends.get(str(year)))
+        next_year_low = number_or_none(annual_low_prices.get(str(year + 1)))
+        if dividend is None or dividend <= 0 or next_year_low is None or next_year_low <= 0:
+            continue
+        dividend_yield = dividend / next_year_low * 100
+        if best_yield is None or dividend_yield > best_yield:
+            best_yield = dividend_yield
+            best_year = year
+    return (
+        round(best_yield, 4) if best_yield is not None else None,
+        best_year,
+    )
 
 
 def number_or_none(value: object) -> float | None:
@@ -461,17 +646,23 @@ def main() -> None:
     codes = [item["code"] for item in universe]
     stocks, quote_timestamp = fetch_quotes(universe)
     histories = fetch_three_month_metrics(stocks, quote_timestamp)
-    dividends = fetch_dividends(fiscal_year, codes)
+    dividends, annual_dividends = fetch_dividends(fiscal_year, codes)
 
     for code, stock in stocks.items():
         stock["dividendPerShare"] = round(dividends.get(code, 0.0), 8)
         stock["dividendYear"] = fiscal_year
-        stock.update(
-            histories.get(
-                code,
-                {"threeMonthChangePct": None, "maxDailyDecline3m": None},
-            )
+        history = histories.get(
+            code,
+            {"threeMonthChangePct": None, "maxDailyDecline3m": None},
         )
+        stock.update(history)
+        historical_yield, historical_year = calculate_historical_max_dividend_yield(
+            annual_dividends.get(code, {}),
+            history.get("annualLowPrices10y") or {},
+            fiscal_year,
+        )
+        stock["historicalMaxDividendYield10y"] = historical_yield
+        stock["historicalMaxDividendYear"] = historical_year
 
     quote_time = quote_timestamp.isoformat() if quote_timestamp else None
     write_json(

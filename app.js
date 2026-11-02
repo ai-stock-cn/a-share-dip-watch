@@ -151,13 +151,19 @@ const STORAGE_KEYS = {
     "a-share-dip-watch:watchlist:v3",
     "a-share-dip-watch:watchlist:v2",
   ],
-  market: "a-share-dip-watch:market:v8",
+  market: "a-share-dip-watch:market:v9",
 };
 
 const FILTER_META = {
   daily: { title: "今日表现", header: "当日涨跌幅" },
   threeMonth: { title: "近3月表现", header: "近3月涨跌幅" },
   largestDaily: { title: "近3月异常", header: "当日涨跌幅" },
+};
+
+const PRICE_TRACK_META = {
+  low: { label: "低位", className: "low" },
+  middle: { label: "中位", className: "middle" },
+  high: { label: "高位", className: "high" },
 };
 
 const TRASH_ICON = `
@@ -266,8 +272,16 @@ function quoteFor(code) {
     changePct: numberOrNull(stock.changePct),
     threeMonthChangePct: numberOrNull(stock.threeMonthChangePct),
     maxDailyDecline3m: numberOrNull(stock.maxDailyDecline3m),
+    priceLow1y: numberOrNull(stock.priceLow1y),
+    priceHigh1y: numberOrNull(stock.priceHigh1y),
+    priceTrackPosition1y: numberOrNull(stock.priceTrackPosition1y),
+    priceTrackBand1y: stock.priceTrackBand1y || null,
     dividendPerShare: numberOrNull(stock.dividendPerShare),
     dividendYear: numberOrNull(stock.dividendYear),
+    historicalMaxDividendYield10y: numberOrNull(
+      stock.historicalMaxDividendYield10y,
+    ),
+    historicalMaxDividendYear: numberOrNull(stock.historicalMaxDividendYear),
   };
 }
 
@@ -275,6 +289,11 @@ function formatPercent(value) {
   if (!Number.isFinite(value)) return "--";
   const prefix = value > 0 ? "+" : "";
   return `${prefix}${value.toFixed(2)}%`;
+}
+
+function formatYield(value) {
+  if (!Number.isFinite(value)) return "--";
+  return `${value.toFixed(2)}%`;
 }
 
 function declineClass(changePct) {
@@ -308,18 +327,42 @@ function rowTemplate(quote) {
   const yearNote = Number.isFinite(quote.dividendYear)
     ? `${quote.dividendYear} 年度`
     : "暂无分红数据";
+  const track = PRICE_TRACK_META[quote.priceTrackBand1y] || null;
+  const trackText =
+    track && Number.isFinite(quote.priceTrackPosition1y)
+      ? `${track.label} ${Math.round(quote.priceTrackPosition1y)}%`
+      : "轨道 --";
+  const trackTitle =
+    track &&
+    Number.isFinite(quote.priceLow1y) &&
+    Number.isFinite(quote.priceHigh1y)
+      ? `近1年价格轨道：${track.label}，区间 ${quote.priceLow1y.toFixed(2)} - ${quote.priceHigh1y.toFixed(2)}`
+      : "暂无近1年价格轨道";
+  const historicalYieldText = Number.isFinite(
+    quote.historicalMaxDividendYield10y,
+  )
+    ? `峰值 ${formatYield(quote.historicalMaxDividendYield10y)}`
+    : "峰值 --";
+  const historicalYieldTitle =
+    Number.isFinite(quote.historicalMaxDividendYield10y) &&
+    Number.isFinite(quote.historicalMaxDividendYear)
+      ? `近10年最高静态股息率：${quote.historicalMaxDividendYear} 年度分红 / ${quote.historicalMaxDividendYear + 1} 年最低周价`
+      : "暂无近10年历史股息率";
   return `
     <tr data-code="${escapeHtml(quote.code)}">
       <td>
         <div class="stock-name" title="${escapeHtml(quote.name)}">${escapeHtml(quote.name)}</div>
-        <div class="stock-code">${escapeHtml(quote.code)}</div>
+        <div class="stock-meta">
+          <span class="stock-code">${escapeHtml(quote.code)}</span>
+          <span class="price-track ${track?.className || "unknown"}" title="${escapeHtml(trackTitle)}">${escapeHtml(trackText)}</span>
+        </div>
       </td>
       <td class="numeric">
         <span class="metric ${declineClass(changeValue)}">${formatPercent(changeValue)}</span>
       </td>
       <td class="numeric">
-        <div class="yield-value">${formatPercent(dividendYield)}</div>
-        <div class="metric-note">${yearNote}</div>
+        <div class="yield-value" title="${escapeHtml(yearNote)}">${formatPercent(dividendYield)}</div>
+        <div class="metric-note" title="${escapeHtml(historicalYieldTitle)}">${escapeHtml(historicalYieldText)}</div>
       </td>
       <td class="row-action-cell">
         <button class="row-action" type="button" data-remove="${escapeHtml(quote.code)}" title="移除 ${escapeHtml(quote.name)}" aria-label="移除 ${escapeHtml(quote.name)}">${TRASH_ICON}</button>
