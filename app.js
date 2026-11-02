@@ -213,6 +213,7 @@ const elements = {
   resultCount: document.querySelector("#resultCount"),
   sortOrder: document.querySelector("#sortOrder"),
   stockCount: document.querySelector("#stockCount"),
+  stockListSearch: document.querySelector("#stockListSearch"),
   stockQuery: document.querySelector("#stockQuery"),
   stockRows: document.querySelector("#stockRows"),
   stockSuggestionPanel: document.querySelector("#stockSuggestionPanel"),
@@ -234,6 +235,7 @@ const state = {
   threshold: 0,
   page: 1,
   pageSize: 50,
+  searchQuery: "",
   sortOrder: "decline",
 };
 
@@ -586,6 +588,14 @@ function renderIndustryOptions(quotes) {
 }
 
 function matchesFilters(quote) {
+  const searchQuery = normalizeStockSearch(state.searchQuery);
+  if (searchQuery) {
+    const searchScore = Math.min(
+      fuzzyMatchScore(normalizeStockSearch(quote.name), searchQuery),
+      fuzzyMatchScore(quote.code, searchQuery),
+    );
+    if (!Number.isFinite(searchScore)) return false;
+  }
   const metric = metricFor(quote);
   if (!Number.isFinite(metric)) return false;
   if (state.industry !== "all" && quote.industry !== state.industry) {
@@ -630,7 +640,7 @@ function render() {
       <tr class="empty-row"><td colspan="4">行情暂不可用</td></tr>`;
   } else if (!filteredQuotes.length) {
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="4">没有符合筛选条件的股票</td></tr>`;
+      <tr class="empty-row"><td colspan="4">${state.searchQuery.trim() ? "没有找到匹配的股票" : "没有符合筛选条件的股票"}</td></tr>`;
   } else {
     elements.stockRows.innerHTML = pageQuotes.map(rowTemplate).join("");
   }
@@ -901,8 +911,10 @@ function showDeclineShortcut(threshold) {
   state.threshold = threshold;
   state.industry = "all";
   state.bollBand = "all";
+  state.searchQuery = "";
   state.sortOrder = "decline";
   state.page = 1;
+  elements.stockListSearch.value = "";
   render();
   elements.watchlistSection.scrollIntoView({
     behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -935,6 +947,11 @@ elements.thresholdFilter.addEventListener("change", (event) => {
 });
 elements.industryFilter.addEventListener("change", (event) => {
   state.industry = event.target.value || "all";
+  state.page = 1;
+  render();
+});
+elements.stockListSearch.addEventListener("input", (event) => {
+  state.searchQuery = event.target.value;
   state.page = 1;
   render();
 });

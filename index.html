@@ -9,8 +9,8 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=27" />
-    <script defer src="./app.js?v=27"></script>
+    <link rel="stylesheet" href="./styles.css?v=28" />
+    <script defer src="./app.js?v=28"></script>
   </head>
   <body>
     <header class="app-header">
@@ -80,6 +80,23 @@
 
         <div class="filter-bar" aria-label="股票筛选与分页设置">
           <div class="filter-group">
+            <label class="control-field stock-search-field" for="stockListSearch">
+              <span>股票查询</span>
+              <span class="stock-search-control">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-4-4" />
+                </svg>
+                <input
+                  id="stockListSearch"
+                  type="search"
+                  placeholder="名称或代码"
+                  autocomplete="off"
+                  spellcheck="false"
+                  aria-label="按股票名称或代码筛选"
+                />
+              </span>
+            </label>
             <label class="control-field" for="periodFilter">
               <span>跌幅范围</span>
               <select id="periodFilter">
