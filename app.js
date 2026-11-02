@@ -180,6 +180,9 @@ const elements = {
   alertCount: document.querySelector("#alertCount"),
   closeDialogButton: document.querySelector("#closeDialogButton"),
   changeHeader: document.querySelector("#changeHeader"),
+  changeHeaderLabel: document.querySelector("#changeHeaderLabel"),
+  changeSortButton: document.querySelector("#changeSortButton"),
+  changeSortIcon: document.querySelector("#changeSortIcon"),
   confirmAddButton: document.querySelector("#confirmAddButton"),
   declineCount: document.querySelector("#declineCount"),
   formError: document.querySelector("#formError"),
@@ -428,7 +431,21 @@ function render() {
 
   const filterMeta = FILTER_META[state.period];
   elements.watchlistTitle.textContent = filterMeta.title;
-  elements.changeHeader.textContent = filterMeta.header;
+  elements.changeHeaderLabel.textContent = filterMeta.header;
+  elements.sortOrder.value = state.sortOrder;
+  const declineFirst = state.sortOrder === "decline";
+  const currentSortLabel = declineFirst ? "从低到高，跌幅优先" : "从高到低，涨幅优先";
+  const nextSortLabel = declineFirst ? "从高到低" : "从低到高";
+  elements.changeHeader.setAttribute(
+    "aria-sort",
+    declineFirst ? "ascending" : "descending",
+  );
+  elements.changeSortIcon.textContent = declineFirst ? "↑" : "↓";
+  elements.changeSortButton.title = `${currentSortLabel}，点击切换为${nextSortLabel}`;
+  elements.changeSortButton.setAttribute(
+    "aria-label",
+    `${filterMeta.header}，当前${currentSortLabel}，点击切换为${nextSortLabel}`,
+  );
   elements.resultCount.textContent = `${filteredQuotes.length} 只`;
   elements.pageStatus.textContent = `第 ${state.page} / ${totalPages} 页`;
   elements.previousPageButton.disabled = state.page <= 1;
@@ -563,6 +580,11 @@ elements.thresholdFilter.addEventListener("change", (event) => {
 });
 elements.sortOrder.addEventListener("change", (event) => {
   state.sortOrder = event.target.value === "rise" ? "rise" : "decline";
+  state.page = 1;
+  render();
+});
+elements.changeSortButton.addEventListener("click", () => {
+  state.sortOrder = state.sortOrder === "decline" ? "rise" : "decline";
   state.page = 1;
   render();
 });

@@ -9,8 +9,8 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股回撤观察</title>
-    <link rel="stylesheet" href="./styles.css?v=9" />
-    <script defer src="./app.js?v=9"></script>
+    <link rel="stylesheet" href="./styles.css?v=10" />
+    <script defer src="./app.js?v=10"></script>
   </head>
   <body>
     <header class="app-header">
@@ -120,7 +120,12 @@
             <thead>
               <tr>
                 <th scope="col">股票</th>
-                <th id="changeHeader" scope="col" class="numeric">当日涨跌幅</th>
+                <th id="changeHeader" scope="col" class="numeric" aria-sort="ascending">
+                  <button id="changeSortButton" class="column-sort-button" type="button">
+                    <span id="changeHeaderLabel">当日涨跌幅</span>
+                    <span id="changeSortIcon" class="column-sort-icon" aria-hidden="true">↑</span>
+                  </button>
+                </th>
                 <th scope="col" class="numeric">静态股息率</th>
                 <th scope="col" class="action-column">
                   <span class="sr-only">操作</span>
