@@ -91,12 +91,30 @@ const BANK_CODES = [
   "603323",
 ];
 
-const DEFAULT_CODES = [...new Set([...BASE_CODES, ...BANK_CODES])];
+const EXTRA_CODES = [
+  "002271",
+  "002293",
+  "002818",
+  "002867",
+  "600023",
+  "600066",
+  "600219",
+  "600329",
+  "600398",
+  "600566",
+  "601919",
+  "603565",
+];
+
+const DEFAULT_CODES = [
+  ...new Set([...BASE_CODES, ...BANK_CODES, ...EXTRA_CODES]),
+];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v3",
-  legacyWatchlist: "a-share-dip-watch:watchlist:v2",
-  market: "a-share-dip-watch:market:v4",
+  watchlist: "a-share-dip-watch:watchlist:v4",
+  legacyWatchlist: "a-share-dip-watch:watchlist:v3",
+  olderWatchlist: "a-share-dip-watch:watchlist:v2",
+  market: "a-share-dip-watch:market:v5",
 };
 
 const FILTER_META = {
@@ -168,9 +186,16 @@ function loadWatchlist() {
   const current = loadJson(STORAGE_KEYS.watchlist, null);
   if (Array.isArray(current)) return current;
 
-  const legacy = loadJson(STORAGE_KEYS.legacyWatchlist, BASE_CODES);
+  const legacy = loadJson(
+    STORAGE_KEYS.legacyWatchlist,
+    loadJson(STORAGE_KEYS.olderWatchlist, BASE_CODES),
+  );
   const migrated = [
-    ...new Set([...(Array.isArray(legacy) ? legacy : BASE_CODES), ...BANK_CODES]),
+    ...new Set([
+      ...(Array.isArray(legacy) ? legacy : BASE_CODES),
+      ...BANK_CODES,
+      ...EXTRA_CODES,
+    ]),
   ];
   saveJson(STORAGE_KEYS.watchlist, migrated);
   return migrated;
