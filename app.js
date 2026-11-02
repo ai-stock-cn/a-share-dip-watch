@@ -286,6 +286,13 @@ function quoteFor(code) {
       stock.historicalMaxDividendYield10y,
     ),
     historicalMaxDividendYear: numberOrNull(stock.historicalMaxDividendYear),
+    recentDividendYields3y: (stock.recentDividendYields3y || [])
+      .map((item) => ({
+        year: numberOrNull(item.year),
+        dividendYear: numberOrNull(item.dividendYear),
+        yieldPct: numberOrNull(item.yieldPct),
+      }))
+      .filter((item) => Number.isFinite(item.year)),
   };
 }
 
@@ -352,16 +359,20 @@ function rowTemplate(quote) {
   )
     ? `峰值 ${formatYield(quote.historicalMaxDividendYield10y)}`
     : "峰值 --";
-  const historicalYieldYearText = Number.isFinite(
-    quote.historicalMaxDividendYear,
-  )
-    ? `${quote.historicalMaxDividendYear} 年度`
-    : "";
   const historicalYieldTitle =
     Number.isFinite(quote.historicalMaxDividendYield10y) &&
     Number.isFinite(quote.historicalMaxDividendYear)
       ? `近10年最高静态股息率：${quote.historicalMaxDividendYear} 年度分红 / ${quote.historicalMaxDividendYear + 1} 年最低周价`
       : "暂无近10年历史股息率";
+  const recentYieldRows = quote.recentDividendYields3y
+    .map((item) => {
+      const yieldText = formatYield(item.yieldPct);
+      const itemTitle = Number.isFinite(item.yieldPct)
+        ? `${item.year} 年股息率：${item.dividendYear} 年度分红 / ${item.year} 年最低周价`
+        : `${item.year} 年暂无完整数据`;
+      return `<span class="recent-yield-item" title="${escapeHtml(itemTitle)}"><span>${item.year}</span><strong>${escapeHtml(yieldText)}</strong></span>`;
+    })
+    .join("");
   const quoteUrl = stockQuoteUrl(quote.code);
   return `
     <tr data-code="${escapeHtml(quote.code)}">
@@ -382,9 +393,9 @@ function rowTemplate(quote) {
       </td>
       <td class="numeric">
         <div class="yield-value" title="${escapeHtml(yearNote)}">${formatPercent(dividendYield)}</div>
-        <div class="metric-note" title="${escapeHtml(historicalYieldTitle)}">
-          <span>${escapeHtml(historicalYieldText)}</span>
-          ${historicalYieldYearText ? `<span class="metric-note-year">${escapeHtml(historicalYieldYearText)}</span>` : ""}
+        <div class="metric-note">
+          <span class="metric-note-peak" title="${escapeHtml(historicalYieldTitle)}">${escapeHtml(historicalYieldText)}</span>
+          <span class="recent-yield-list" aria-label="最近三年历史股息率">${recentYieldRows}</span>
         </div>
       </td>
       <td class="row-action-cell">

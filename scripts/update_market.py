@@ -614,6 +614,34 @@ def calculate_historical_max_dividend_yield(
     )
 
 
+def calculate_recent_dividend_yields(
+    annual_dividends: dict[str, float],
+    annual_low_prices: dict[str, float],
+    current_year: int,
+) -> list[dict]:
+    yields: list[dict] = []
+    for year in range(current_year - 2, current_year + 1):
+        dividend_year = year - 1
+        dividend = number_or_none(annual_dividends.get(str(dividend_year)))
+        annual_low = number_or_none(annual_low_prices.get(str(year)))
+        dividend_yield = None
+        if (
+            dividend is not None
+            and dividend > 0
+            and annual_low is not None
+            and annual_low > 0
+        ):
+            dividend_yield = round(dividend / annual_low * 100, 4)
+        yields.append(
+            {
+                "year": year,
+                "dividendYear": dividend_year,
+                "yieldPct": dividend_yield,
+            }
+        )
+    return yields
+
+
 def number_or_none(value: object) -> float | None:
     try:
         number = float(value)
@@ -663,6 +691,11 @@ def main() -> None:
         )
         stock["historicalMaxDividendYield10y"] = historical_yield
         stock["historicalMaxDividendYear"] = historical_year
+        stock["recentDividendYields3y"] = calculate_recent_dividend_yields(
+            annual_dividends.get(code, {}),
+            history.get("annualLowPrices10y") or {},
+            now.year,
+        )
 
     quote_time = quote_timestamp.isoformat() if quote_timestamp else None
     write_json(

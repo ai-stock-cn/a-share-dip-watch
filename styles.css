@@ -483,8 +483,7 @@ td.numeric {
   line-height: 1.25;
 }
 
-.price-track,
-.metric-note {
+.price-track {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -502,9 +501,29 @@ td.numeric {
   margin-top: 4px;
 }
 
-.metric-note-year {
-  margin-top: 2px;
+.metric-note-peak {
   display: block;
+  white-space: nowrap;
+}
+
+.recent-yield-list {
+  margin-top: 3px;
+  display: grid;
+  gap: 2px;
+}
+
+.recent-yield-item {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.recent-yield-item strong {
+  min-width: 44px;
+  color: var(--ink-muted);
+  font-weight: 650;
+  text-align: right;
 }
 
 .metric {
