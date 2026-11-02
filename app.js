@@ -98,6 +98,8 @@ const EXTRA_CODES = [
   "002271",
   "002293",
   "002327",
+  "002415",
+  "002555",
   "002557",
   "002572",
   "002582",
@@ -105,25 +107,35 @@ const EXTRA_CODES = [
   "002832",
   "002867",
   "600023",
+  "600035",
   "600039",
   "600066",
+  "600096",
   "600132",
   "600177",
+  "600188",
   "600210",
   "600219",
   "600295",
   "600329",
+  "600377",
   "600398",
   "600566",
   "600582",
+  "600585",
+  "600600",
   "601098",
   "601225",
+  "601336",
   "601668",
   "601919",
   "601928",
   "603195",
   "603565",
   "603833",
+  "603866",
+  "605337",
+  "605338",
 ];
 
 const DEFAULT_CODES = [
@@ -131,14 +143,15 @@ const DEFAULT_CODES = [
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v6",
+  watchlist: "a-share-dip-watch:watchlist:v7",
   legacyWatchlists: [
+    "a-share-dip-watch:watchlist:v6",
     "a-share-dip-watch:watchlist:v5",
     "a-share-dip-watch:watchlist:v4",
     "a-share-dip-watch:watchlist:v3",
     "a-share-dip-watch:watchlist:v2",
   ],
-  market: "a-share-dip-watch:market:v7",
+  market: "a-share-dip-watch:market:v8",
 };
 
 const FILTER_META = {
