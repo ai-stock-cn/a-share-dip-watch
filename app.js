@@ -1,6 +1,6 @@
 "use strict";
 
-const DEFAULT_CODES = [
+const BASE_CODES = [
   "000001",
   "000333",
   "000423",
@@ -46,15 +46,63 @@ const DEFAULT_CODES = [
   "603288",
 ];
 
+const BANK_CODES = [
+  "000001",
+  "001227",
+  "002142",
+  "002807",
+  "002839",
+  "002936",
+  "002948",
+  "002958",
+  "002966",
+  "600000",
+  "600015",
+  "600016",
+  "600036",
+  "600908",
+  "600919",
+  "600926",
+  "600928",
+  "601009",
+  "601077",
+  "601128",
+  "601166",
+  "601169",
+  "601187",
+  "601229",
+  "601288",
+  "601328",
+  "601398",
+  "601528",
+  "601577",
+  "601658",
+  "601665",
+  "601818",
+  "601825",
+  "601838",
+  "601860",
+  "601916",
+  "601939",
+  "601963",
+  "601988",
+  "601997",
+  "601998",
+  "603323",
+];
+
+const DEFAULT_CODES = [...new Set([...BASE_CODES, ...BANK_CODES])];
+
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v2",
-  market: "a-share-dip-watch:market:v3",
+  watchlist: "a-share-dip-watch:watchlist:v3",
+  legacyWatchlist: "a-share-dip-watch:watchlist:v2",
+  market: "a-share-dip-watch:market:v4",
 };
 
 const FILTER_META = {
-  daily: { title: "今日表现", header: "当日跌幅" },
-  threeMonth: { title: "近3月表现", header: "近3月跌幅" },
-  largestDaily: { title: "近3月异常", header: "当日跌幅" },
+  daily: { title: "今日表现", header: "当日涨跌幅" },
+  threeMonth: { title: "近3月表现", header: "近3月涨跌幅" },
+  largestDaily: { title: "近3月异常", header: "当日涨跌幅" },
 };
 
 const TRASH_ICON = `
@@ -82,6 +130,7 @@ const elements = {
   previousPageButton: document.querySelector("#previousPageButton"),
   refreshButton: document.querySelector("#refreshButton"),
   resultCount: document.querySelector("#resultCount"),
+  sortOrder: document.querySelector("#sortOrder"),
   stockCode: document.querySelector("#stockCode"),
   stockCount: document.querySelector("#stockCount"),
   stockRows: document.querySelector("#stockRows"),
@@ -92,13 +141,14 @@ const elements = {
 };
 
 const state = {
-  codes: loadJson(STORAGE_KEYS.watchlist, DEFAULT_CODES),
+  codes: loadWatchlist(),
   market: loadJson(STORAGE_KEYS.market, null),
   loading: false,
   period: "daily",
   threshold: 0,
   page: 1,
   pageSize: 10,
+  sortOrder: "decline",
 };
 
 function loadJson(key, fallback) {
@@ -112,6 +162,18 @@ function loadJson(key, fallback) {
 
 function saveJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function loadWatchlist() {
+  const current = loadJson(STORAGE_KEYS.watchlist, null);
+  if (Array.isArray(current)) return current;
+
+  const legacy = loadJson(STORAGE_KEYS.legacyWatchlist, BASE_CODES);
+  const migrated = [
+    ...new Set([...(Array.isArray(legacy) ? legacy : BASE_CODES), ...BANK_CODES]),
+  ];
+  saveJson(STORAGE_KEYS.watchlist, migrated);
+  return migrated;
 }
 
 function numberOrNull(value) {
@@ -207,9 +269,15 @@ function sortQuotes(quotes) {
   return [...quotes].sort((a, b) => {
     const aMetric = metricFor(a);
     const bMetric = metricFor(b);
-    const aValue = Number.isFinite(aMetric) ? aMetric : Infinity;
-    const bValue = Number.isFinite(bMetric) ? bMetric : Infinity;
-    return aValue - bValue || a.code.localeCompare(b.code);
+    const aValid = Number.isFinite(aMetric);
+    const bValid = Number.isFinite(bMetric);
+    if (!aValid || !bValid) {
+      if (aValid) return -1;
+      if (bValid) return 1;
+      return a.code.localeCompare(b.code);
+    }
+    const direction = state.sortOrder === "rise" ? -1 : 1;
+    return (aMetric - bMetric) * direction || a.code.localeCompare(b.code);
   });
 }
 
@@ -350,7 +418,7 @@ function addStock(event) {
   }
   const quote = quoteFor(code);
   if (!quote || !Number.isFinite(quote.price)) {
-    elements.formError.textContent = "不在这 43 只股票清单中";
+    elements.formError.textContent = "不在当前同步股票清单中";
     return;
   }
 
@@ -385,6 +453,11 @@ elements.periodFilter.addEventListener("change", (event) => {
 });
 elements.thresholdFilter.addEventListener("change", (event) => {
   state.threshold = Number(event.target.value) || 0;
+  state.page = 1;
+  render();
+});
+elements.sortOrder.addEventListener("change", (event) => {
+  state.sortOrder = event.target.value === "rise" ? "rise" : "decline";
   state.page = 1;
   render();
 });

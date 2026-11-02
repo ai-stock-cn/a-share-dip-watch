@@ -20,7 +20,7 @@ DATA_DIR = ROOT / "data"
 MARKET_PATH = DATA_DIR / "market.json"
 DIVIDEND_PATH = DATA_DIR / "dividends.json"
 CODES_PATH = DATA_DIR / "codes.json"
-EXPECTED_UNIVERSE_SIZE = 43
+EXPECTED_UNIVERSE_SIZE = 71
 HISTORY_LIMIT = 100
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 USER_AGENT = "Mozilla/5.0 (compatible; AShareDipWatch/1.0; +https://github.com/)"
@@ -243,13 +243,25 @@ def fetch_history_input(
     code: str, quote_day
 ) -> dict[str, float | str | None]:
     symbol = f"sh{code}" if code.startswith("6") else f"sz{code}"
-    payload = request_json(
-        "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
-        {"param": f"{symbol},day,,,{HISTORY_LIMIT},qfq"},
-        referer="https://gu.qq.com/",
-    )
-    stock_payload = (payload.get("data") or {}).get(symbol) or {}
-    lines = stock_payload.get("qfqday") or stock_payload.get("day") or []
+    try:
+        payload = request_json(
+            "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
+            {"param": f"{symbol},day,,,{HISTORY_LIMIT},qfq"},
+            retries=1,
+            referer="https://gu.qq.com/",
+        )
+        stock_payload = (payload.get("data") or {}).get(symbol) or {}
+        lines = stock_payload.get("qfqday") or stock_payload.get("day") or []
+        closes = history_closes_from_tencent(lines)
+        if len(closes) < 3:
+            raise RuntimeError("insufficient Tencent K-line rows")
+    except Exception:
+        closes = fetch_sina_history_closes(symbol)
+
+    return history_input_from_closes(closes, quote_day)
+
+
+def history_closes_from_tencent(lines: list) -> list[tuple[datetime, float]]:
     closes: list[tuple[datetime, float]] = []
     for line in lines:
         if not isinstance(line, list) or len(line) < 3:
@@ -261,6 +273,39 @@ def fetch_history_input(
         close = number_or_none(line[2])
         if close is not None:
             closes.append((trade_date, close))
+    return closes
+
+
+def fetch_sina_history_closes(symbol: str) -> list[tuple[datetime, float]]:
+    body = request_text(
+        f"https://quotes.sina.cn/cn/api/jsonp_v2.php/var_{symbol}=/"
+        "CN_MarketDataService.getKLineData",
+        {"symbol": symbol, "scale": 240, "ma": "no", "datalen": HISTORY_LIMIT},
+        "utf-8",
+    )
+    match = re.search(r"=\((\[.*\])\);?\s*$", body, flags=re.DOTALL)
+    if not match:
+        raise RuntimeError("invalid Sina K-line response")
+    rows = json.loads(match.group(1))
+    closes: list[tuple[datetime, float]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        try:
+            trade_date = datetime.strptime(str(row.get("day")), "%Y-%m-%d")
+        except ValueError:
+            continue
+        close = number_or_none(row.get("close"))
+        if close is not None:
+            closes.append((trade_date, close))
+    if len(closes) < 3:
+        raise RuntimeError("insufficient Sina K-line rows")
+    return closes
+
+
+def history_input_from_closes(
+    closes: list[tuple[datetime, float]], quote_day
+) -> dict[str, float | str | None]:
 
     closes.sort(key=lambda row: row[0])
     if len(closes) < 3:

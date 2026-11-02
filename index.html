@@ -94,6 +94,13 @@
                 <option value="5">5% 以上</option>
               </select>
             </label>
+            <label class="control-field" for="sortOrder">
+              <span>排序</span>
+              <select id="sortOrder">
+                <option value="decline">跌幅优先</option>
+                <option value="rise">涨幅优先</option>
+              </select>
+            </label>
           </div>
           <div class="page-settings">
             <span id="resultCount" class="result-count">-- 只</span>
@@ -113,7 +120,7 @@
             <thead>
               <tr>
                 <th scope="col">股票</th>
-                <th id="changeHeader" scope="col" class="numeric">当日跌幅</th>
+                <th id="changeHeader" scope="col" class="numeric">当日涨跌幅</th>
                 <th scope="col" class="numeric">静态股息率</th>
                 <th scope="col" class="action-column">
                   <span class="sr-only">操作</span>
