@@ -347,6 +347,11 @@ function rowTemplate(quote) {
   )
     ? `峰值 ${formatYield(quote.historicalMaxDividendYield10y)}`
     : "峰值 --";
+  const historicalYieldYearText = Number.isFinite(
+    quote.historicalMaxDividendYear,
+  )
+    ? `${quote.historicalMaxDividendYear} 年度`
+    : "";
   const historicalYieldTitle =
     Number.isFinite(quote.historicalMaxDividendYield10y) &&
     Number.isFinite(quote.historicalMaxDividendYear)
@@ -366,7 +371,10 @@ function rowTemplate(quote) {
       </td>
       <td class="numeric">
         <div class="yield-value" title="${escapeHtml(yearNote)}">${formatPercent(dividendYield)}</div>
-        <div class="metric-note" title="${escapeHtml(historicalYieldTitle)}">${escapeHtml(historicalYieldText)}</div>
+        <div class="metric-note" title="${escapeHtml(historicalYieldTitle)}">
+          <span>${escapeHtml(historicalYieldText)}</span>
+          ${historicalYieldYearText ? `<span class="metric-note-year">${escapeHtml(historicalYieldYearText)}</span>` : ""}
+        </div>
       </td>
       <td class="row-action-cell">
         <button class="row-action" type="button" data-remove="${escapeHtml(quote.code)}" title="移除 ${escapeHtml(quote.name)}" aria-label="移除 ${escapeHtml(quote.name)}">${TRASH_ICON}</button>

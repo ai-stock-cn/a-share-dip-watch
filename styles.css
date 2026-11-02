@@ -467,6 +467,11 @@ td.numeric {
   margin-top: 4px;
 }
 
+.metric-note-year {
+  margin-top: 2px;
+  display: block;
+}
+
 .metric {
   display: inline-flex;
   min-width: 88px;
