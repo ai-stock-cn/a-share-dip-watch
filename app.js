@@ -466,17 +466,18 @@ function rowTemplate(quote) {
       return `<span class="boll-track ${bandMeta?.className || "unknown"}" title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
     })
     .join("");
-  const dailyBollTrack = quote.bollTracks.day;
-  const dailyLowerRailSignal = getBollLowerRailSignal(
+  const activeBollPeriod = BOLL_PERIOD_META[state.bollPeriod];
+  const activeBollTrack = quote.bollTracks[state.bollPeriod];
+  const activeLowerRailSignal = getBollLowerRailSignal(
     quote.price,
-    dailyBollTrack?.lower,
+    activeBollTrack?.lower,
   );
-  const dailyLowerRailTitle =
-    Number.isFinite(dailyLowerRailSignal.distancePct) &&
-    Number.isFinite(dailyBollTrack?.lower) &&
+  const activeLowerRailTitle =
+    Number.isFinite(activeLowerRailSignal.distancePct) &&
+    Number.isFinite(activeBollTrack?.lower) &&
     Number.isFinite(quote.price)
-      ? `日线 BOLL 下轨距离：(现价 ${formatPrice(quote.price)} - 下轨 ${formatPrice(dailyBollTrack.lower)}) ÷ 下轨 ${formatPrice(dailyBollTrack.lower)} = ${dailyLowerRailSignal.distancePct.toFixed(2)}%`
-      : "日线 BOLL 下轨距离暂无数据";
+      ? `${activeBollPeriod.label} BOLL 下轨距离：(现价 ${formatPrice(quote.price)} - 下轨 ${formatPrice(activeBollTrack.lower)}) ÷ 下轨 ${formatPrice(activeBollTrack.lower)} = ${activeLowerRailSignal.distancePct.toFixed(2)}%`
+      : `${activeBollPeriod.label} BOLL 下轨距离暂无数据`;
   const historicalYieldText = Number.isFinite(
     quote.historicalMaxDividendYield10y,
   )
@@ -525,9 +526,9 @@ function rowTemplate(quote) {
           <span class="price-track ${track?.className || "unknown"}" title="${escapeHtml(trackTitle)}">${escapeHtml(trackText)}</span>
         </div>
         <div class="boll-track-list" aria-label="BOLL 日周月轨道">${bollTrackRows}</div>
-        <div class="boll-lower-distance ${dailyLowerRailSignal.status}" title="${escapeHtml(dailyLowerRailTitle)}" aria-label="日线 BOLL ${escapeHtml(dailyLowerRailSignal.label)}">
-          <span>${escapeHtml(dailyLowerRailSignal.label)}</span>
-          <small>下轨 ${escapeHtml(formatPrice(dailyBollTrack?.lower))}</small>
+        <div class="boll-lower-distance ${activeLowerRailSignal.status}" title="${escapeHtml(activeLowerRailTitle)}" aria-label="${escapeHtml(activeBollPeriod.label)} BOLL ${escapeHtml(activeLowerRailSignal.label)}">
+          <span>${escapeHtml(activeLowerRailSignal.label)}</span>
+          <small>${escapeHtml(activeBollPeriod.shortLabel)}线下轨 ${escapeHtml(formatPrice(activeBollTrack?.lower))}</small>
         </div>
       </td>
       <td class="numeric">
@@ -550,6 +551,32 @@ function rowTemplate(quote) {
 
 function sortQuotes(quotes) {
   return [...quotes].sort((a, b) => {
+    if (
+      state.sortOrder === "bollNearest" ||
+      state.sortOrder === "bollFarthest"
+    ) {
+      const aDistance = getBollLowerRailSignal(
+        a.price,
+        a.bollTracks[state.bollPeriod]?.lower,
+      ).distancePct;
+      const bDistance = getBollLowerRailSignal(
+        b.price,
+        b.bollTracks[state.bollPeriod]?.lower,
+      ).distancePct;
+      const aValid = Number.isFinite(aDistance);
+      const bValid = Number.isFinite(bDistance);
+      if (!aValid || !bValid) {
+        if (aValid) return -1;
+        if (bValid) return 1;
+        return a.code.localeCompare(b.code);
+      }
+      const direction = state.sortOrder === "bollNearest" ? 1 : -1;
+      return (
+        (Math.abs(aDistance) - Math.abs(bDistance)) * direction ||
+        aDistance - bDistance ||
+        a.code.localeCompare(b.code)
+      );
+    }
     const aMetric = metricFor(a);
     const bMetric = metricFor(b);
     const aValid = Number.isFinite(aMetric);
@@ -656,19 +683,35 @@ function render() {
   elements.periodFilter.value = state.period;
   elements.sortOrder.value = state.sortOrder;
   elements.thresholdFilter.value = String(state.threshold);
-  const declineFirst = state.sortOrder === "decline";
-  const currentSortLabel = declineFirst ? "从低到高，跌幅优先" : "从高到低，涨幅优先";
-  const nextSortLabel = declineFirst ? "从高到低" : "从低到高";
-  elements.changeHeader.setAttribute(
-    "aria-sort",
-    declineFirst ? "ascending" : "descending",
-  );
-  elements.changeSortIcon.textContent = declineFirst ? "↑" : "↓";
-  elements.changeSortButton.title = `${currentSortLabel}，点击切换为${nextSortLabel}`;
-  elements.changeSortButton.setAttribute(
-    "aria-label",
-    `${filterMeta.header}，当前${currentSortLabel}，点击切换为${nextSortLabel}`,
-  );
+  const metricSortActive = ["decline", "rise"].includes(state.sortOrder);
+  if (metricSortActive) {
+    const declineFirst = state.sortOrder === "decline";
+    const currentSortLabel = declineFirst
+      ? "从低到高，跌幅优先"
+      : "从高到低，涨幅优先";
+    const nextSortLabel = declineFirst ? "从高到低" : "从低到高";
+    elements.changeHeader.setAttribute(
+      "aria-sort",
+      declineFirst ? "ascending" : "descending",
+    );
+    elements.changeSortIcon.textContent = declineFirst ? "↑" : "↓";
+    elements.changeSortButton.title = `${currentSortLabel}，点击切换为${nextSortLabel}`;
+    elements.changeSortButton.setAttribute(
+      "aria-label",
+      `${filterMeta.header}，当前${currentSortLabel}，点击切换为${nextSortLabel}`,
+    );
+  } else {
+    const periodLabel = BOLL_PERIOD_META[state.bollPeriod].label;
+    const distanceSortLabel =
+      state.sortOrder === "bollNearest" ? "距下轨最近" : "距下轨最远";
+    elements.changeHeader.setAttribute("aria-sort", "none");
+    elements.changeSortIcon.textContent = "↕";
+    elements.changeSortButton.title = `当前按${periodLabel} BOLL ${distanceSortLabel}排序，点击改为跌幅优先`;
+    elements.changeSortButton.setAttribute(
+      "aria-label",
+      `${filterMeta.header}，当前列表按${periodLabel} BOLL ${distanceSortLabel}排序，点击改为跌幅优先`,
+    );
+  }
   elements.resultCount.textContent = `${filteredQuotes.length} 只`;
   elements.pageStatus.textContent = `第 ${state.page} / ${totalPages} 页`;
   elements.previousPageButton.disabled = state.page <= 1;
@@ -973,7 +1016,14 @@ elements.bollBandFilter.addEventListener("change", (event) => {
   render();
 });
 elements.sortOrder.addEventListener("change", (event) => {
-  state.sortOrder = event.target.value === "rise" ? "rise" : "decline";
+  state.sortOrder = [
+    "decline",
+    "rise",
+    "bollNearest",
+    "bollFarthest",
+  ].includes(event.target.value)
+    ? event.target.value
+    : "decline";
   state.page = 1;
   render();
 });
