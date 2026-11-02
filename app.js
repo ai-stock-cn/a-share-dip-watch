@@ -200,6 +200,7 @@ const elements = {
   confirmAddButton: document.querySelector("#confirmAddButton"),
   severeDeclineCount: document.querySelector("#severeDeclineCount"),
   formError: document.querySelector("#formError"),
+  industryFilter: document.querySelector("#industryFilter"),
   marketStatus: document.querySelector("#marketStatus"),
   nextPageButton: document.querySelector("#nextPageButton"),
   pageSizeSelect: document.querySelector("#pageSizeSelect"),
@@ -225,6 +226,7 @@ const state = {
   loading: false,
   bollBand: "all",
   bollPeriod: "day",
+  industry: "all",
   period: "daily",
   threshold: 0,
   page: 1,
@@ -503,9 +505,37 @@ function sortQuotes(quotes) {
   });
 }
 
+function renderIndustryOptions(quotes) {
+  const industryCounts = quotes.reduce((counts, quote) => {
+    counts.set(quote.industry, (counts.get(quote.industry) || 0) + 1);
+    return counts;
+  }, new Map());
+  const industries = [...industryCounts.entries()].sort(
+    ([industryA, countA], [industryB, countB]) =>
+      countB - countA || industryA.localeCompare(industryB, "zh-CN"),
+  );
+  if (
+    state.industry !== "all" &&
+    !industryCounts.has(state.industry)
+  ) {
+    state.industry = "all";
+  }
+  elements.industryFilter.innerHTML = [
+    `<option value="all">全部行业</option>`,
+    ...industries.map(
+      ([industry, count]) =>
+        `<option value="${escapeHtml(industry)}" title="${escapeHtml(industry)}：${count} 只">${escapeHtml(industry)}</option>`,
+    ),
+  ].join("");
+  elements.industryFilter.value = state.industry;
+}
+
 function matchesFilters(quote) {
   const metric = metricFor(quote);
   if (!Number.isFinite(metric)) return false;
+  if (state.industry !== "all" && quote.industry !== state.industry) {
+    return false;
+  }
   if (state.threshold > 0 && metric > -state.threshold) return false;
   if (
     state.bollBand !== "all" &&
@@ -525,6 +555,7 @@ function matchesFilters(quote) {
 
 function render() {
   const availableQuotes = state.codes.map(quoteFor).filter(Boolean);
+  renderIndustryOptions(availableQuotes);
   const filteredQuotes = sortQuotes(availableQuotes.filter(matchesFilters));
   const totalPages = Math.max(1, Math.ceil(filteredQuotes.length / state.pageSize));
   state.page = Math.min(state.page, totalPages);
@@ -820,6 +851,11 @@ elements.periodFilter.addEventListener("change", (event) => {
 });
 elements.thresholdFilter.addEventListener("change", (event) => {
   state.threshold = Number(event.target.value) || 0;
+  state.page = 1;
+  render();
+});
+elements.industryFilter.addEventListener("change", (event) => {
+  state.industry = event.target.value || "all";
   state.page = 1;
   render();
 });

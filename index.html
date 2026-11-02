@@ -9,8 +9,8 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股回撤观察</title>
-    <link rel="stylesheet" href="./styles.css?v=21" />
-    <script defer src="./app.js?v=21"></script>
+    <link rel="stylesheet" href="./styles.css?v=23" />
+    <script defer src="./app.js?v=23"></script>
   </head>
   <body>
     <header class="app-header">
@@ -99,6 +99,12 @@
               <select id="sortOrder">
                 <option value="decline">跌幅优先</option>
                 <option value="rise">涨幅优先</option>
+              </select>
+            </label>
+            <label class="control-field" for="industryFilter">
+              <span>行业</span>
+              <select id="industryFilter">
+                <option value="all">全部行业</option>
               </select>
             </label>
             <label class="control-field compact" for="bollPeriodFilter">
