@@ -12,6 +12,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from statistics import fmean, pstdev
 from zoneinfo import ZoneInfo
 
 
@@ -21,9 +22,11 @@ MARKET_PATH = DATA_DIR / "market.json"
 DIVIDEND_PATH = DATA_DIR / "dividends.json"
 CODES_PATH = DATA_DIR / "codes.json"
 EXPECTED_UNIVERSE_SIZE = 115
-HISTORY_LIMIT = 280
+HISTORY_LIMIT = 520
 WEEKLY_HISTORY_LIMIT = 600
 HISTORICAL_DIVIDEND_YEARS = 10
+BOLL_PERIOD = 20
+BOLL_STD_MULTIPLIER = 2
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 USER_AGENT = "Mozilla/5.0 (compatible; AShareDipWatch/1.0; +https://github.com/)"
 
@@ -214,6 +217,8 @@ def fetch_three_month_metrics(
         if baseline_close is None:
             continue
         current_price = number_or_none(stocks[code].get("price"))
+        boll_bands = normalize_boll_bands(history.get("bollBands")) or {}
+        boll_tracks = boll_tracks_from_bands(current_price, boll_bands)
         three_month_change = (
             (current_price / baseline_close - 1) * 100
             if current_price is not None and baseline_close > 0
@@ -260,10 +265,63 @@ def fetch_three_month_metrics(
                 else None
             ),
             "priceTrackBand1y": price_track_band,
+            "bollBands": boll_bands,
+            "bollTracks": boll_tracks,
             "annualLowPrices10y": history.get("annualLowPrices10y") or {},
             "historyAsOf": history["historyAsOf"],
         }
     return metrics
+
+
+def normalize_boll_bands(payload: object) -> dict[str, dict[str, float]] | None:
+    if not isinstance(payload, dict):
+        return None
+    normalized: dict[str, dict[str, float]] = {}
+    for period in ("day", "week", "month"):
+        values = payload.get(period)
+        if not isinstance(values, dict):
+            return None
+        lower = number_or_none(values.get("lower"))
+        middle = number_or_none(values.get("middle"))
+        upper = number_or_none(values.get("upper"))
+        if lower is None or middle is None or upper is None:
+            return None
+        normalized[period] = {
+            "lower": lower,
+            "middle": middle,
+            "upper": upper,
+        }
+    return normalized
+
+
+def boll_tracks_from_bands(
+    current_price: float | None,
+    boll_bands: dict[str, dict[str, float]],
+) -> dict[str, dict]:
+    if current_price is None:
+        return {}
+    tracks: dict[str, dict] = {}
+    for period, values in boll_bands.items():
+        lower = values["lower"]
+        middle = values["middle"]
+        upper = values["upper"]
+        if upper <= lower:
+            continue
+        position = (current_price - lower) / (upper - lower) * 100
+        if position < 33.3333:
+            band = "lower"
+        elif position < 66.6667:
+            band = "middle"
+        else:
+            band = "upper"
+        tracks[period] = {
+            "band": band,
+            "positionPct": round(position, 2),
+            "lower": round(lower, 4),
+            "middle": round(middle, 4),
+            "upper": round(upper, 4),
+        }
+    return tracks
 
 
 def load_history_inputs_from_cache(
@@ -281,6 +339,7 @@ def load_history_inputs_from_cache(
             price_low = number_or_none(stock.get("priceLow1y"))
             price_high = number_or_none(stock.get("priceHigh1y"))
             annual_lows = stock.get("annualLowPrices10y")
+            boll_bands = normalize_boll_bands(stock.get("bollBands"))
             if (
                 stock.get("historyAsOf") != quote_day
                 or baseline is None
@@ -288,6 +347,7 @@ def load_history_inputs_from_cache(
                 or price_high is None
                 or not isinstance(annual_lows, dict)
                 or not annual_lows
+                or boll_bands is None
             ):
                 continue
             cached[code] = {
@@ -297,6 +357,7 @@ def load_history_inputs_from_cache(
                 ),
                 "priceLow1y": price_low,
                 "priceHigh1y": price_high,
+                "bollBands": boll_bands,
                 "annualLowPrices10y": {
                     str(year): float(value)
                     for year, value in annual_lows.items()
@@ -462,6 +523,9 @@ def history_input_from_closes(
         for trade_date, change in daily_changes
         if trade_date.date() < quote_day and trade_date >= cutoff and change < 0
     ]
+    boll_bands = calculate_boll_bands(closes)
+    if len(boll_bands) != 3:
+        raise RuntimeError("insufficient BOLL history rows")
     return {
         "threeMonthBaseClose": period_rows[0][1],
         "maxDailyDecline3m": (
@@ -469,8 +533,53 @@ def history_input_from_closes(
         ),
         "priceLow1y": round(min(close for _, close in one_year_rows), 4),
         "priceHigh1y": round(max(close for _, close in one_year_rows), 4),
+        "bollBands": boll_bands,
         "annualLowPrices10y": annual_lows,
         "historyAsOf": quote_day.isoformat(),
+    }
+
+
+def calculate_boll_bands(
+    closes: list[tuple[datetime, float]],
+) -> dict[str, dict[str, float]]:
+    values_by_period = {
+        "day": [close for _, close in closes],
+        "week": aggregate_period_closes(closes, "week"),
+        "month": aggregate_period_closes(closes, "month"),
+    }
+    bands: dict[str, dict[str, float]] = {}
+    for period, values in values_by_period.items():
+        calculated = boll_bands_from_values(values)
+        if calculated is not None:
+            bands[period] = calculated
+    return bands
+
+
+def aggregate_period_closes(
+    closes: list[tuple[datetime, float]], period: str
+) -> list[float]:
+    grouped: dict[tuple[int, int], float] = {}
+    for trade_date, close in closes:
+        if period == "week":
+            iso_year, iso_week, _ = trade_date.isocalendar()
+            key = (iso_year, iso_week)
+        else:
+            key = (trade_date.year, trade_date.month)
+        grouped[key] = close
+    return list(grouped.values())
+
+
+def boll_bands_from_values(values: list[float]) -> dict[str, float] | None:
+    if len(values) < BOLL_PERIOD:
+        return None
+    window = values[-BOLL_PERIOD:]
+    middle = fmean(window)
+    deviation = pstdev(window)
+    distance = BOLL_STD_MULTIPLIER * deviation
+    return {
+        "lower": round(middle - distance, 4),
+        "middle": round(middle, 4),
+        "upper": round(middle + distance, 4),
     }
 
 

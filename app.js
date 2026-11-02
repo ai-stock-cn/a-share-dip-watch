@@ -151,7 +151,7 @@ const STORAGE_KEYS = {
     "a-share-dip-watch:watchlist:v3",
     "a-share-dip-watch:watchlist:v2",
   ],
-  market: "a-share-dip-watch:market:v10",
+  market: "a-share-dip-watch:market:v11",
 };
 
 const FILTER_META = {
@@ -166,6 +166,18 @@ const PRICE_TRACK_META = {
   high: { label: "高位", className: "high" },
 };
 
+const BOLL_PERIOD_META = {
+  day: { shortLabel: "日", label: "日线" },
+  week: { shortLabel: "周", label: "周线" },
+  month: { shortLabel: "月", label: "月线" },
+};
+
+const BOLL_BAND_META = {
+  lower: { label: "下轨", className: "lower" },
+  middle: { label: "中轨", className: "middle" },
+  upper: { label: "上轨", className: "upper" },
+};
+
 const TRASH_ICON = `
   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
     <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v5" /><path d="M14 11v5" />
@@ -178,6 +190,8 @@ const elements = {
   addDialog: document.querySelector("#addDialog"),
   addForm: document.querySelector("#addForm"),
   alertCount: document.querySelector("#alertCount"),
+  bollBandFilter: document.querySelector("#bollBandFilter"),
+  bollPeriodFilter: document.querySelector("#bollPeriodFilter"),
   closeDialogButton: document.querySelector("#closeDialogButton"),
   changeHeader: document.querySelector("#changeHeader"),
   changeHeaderLabel: document.querySelector("#changeHeaderLabel"),
@@ -209,6 +223,8 @@ const state = {
   codes: loadWatchlist(),
   market: loadJson(STORAGE_KEYS.market, null),
   loading: false,
+  bollBand: "all",
+  bollPeriod: "day",
   period: "daily",
   threshold: 0,
   page: 1,
@@ -282,6 +298,18 @@ function quoteFor(code) {
     priceHigh1y: numberOrNull(stock.priceHigh1y),
     priceTrackPosition1y: numberOrNull(stock.priceTrackPosition1y),
     priceTrackBand1y: stock.priceTrackBand1y || null,
+    bollTracks: Object.fromEntries(
+      Object.entries(stock.bollTracks || {}).map(([period, track]) => [
+        period,
+        {
+          band: track?.band || null,
+          positionPct: numberOrNull(track?.positionPct),
+          lower: numberOrNull(track?.lower),
+          middle: numberOrNull(track?.middle),
+          upper: numberOrNull(track?.upper),
+        },
+      ]),
+    ),
     dividendPerShare: numberOrNull(stock.dividendPerShare),
     dividendYear: numberOrNull(stock.dividendYear),
     historicalMaxDividendYield10y: numberOrNull(
@@ -326,7 +354,8 @@ function escapeHtml(value) {
 }
 
 function stockQuoteUrl(code) {
-  return `https://stockpage.10jqka.com.cn/${code}/`;
+  const exchange = code.startsWith("6") ? "SH" : "SZ";
+  return `https://xueqiu.com/S/${exchange}${code}`;
 }
 
 function metricFor(quote) {
@@ -354,6 +383,24 @@ function rowTemplate(quote) {
     Number.isFinite(quote.priceHigh1y)
       ? `近1年价格轨道：${track.label}，区间 ${quote.priceLow1y.toFixed(2)} - ${quote.priceHigh1y.toFixed(2)}`
       : "暂无近1年价格轨道";
+  const bollTrackRows = Object.entries(BOLL_PERIOD_META)
+    .map(([period, periodMeta]) => {
+      const bollTrack = quote.bollTracks[period];
+      const bandMeta = BOLL_BAND_META[bollTrack?.band] || null;
+      const label = bandMeta
+        ? `${periodMeta.shortLabel}·${bandMeta.label}`
+        : `${periodMeta.shortLabel}·--`;
+      const title =
+        bandMeta &&
+        Number.isFinite(bollTrack.positionPct) &&
+        Number.isFinite(bollTrack.lower) &&
+        Number.isFinite(bollTrack.middle) &&
+        Number.isFinite(bollTrack.upper)
+          ? `${periodMeta.label} BOLL(20, 2σ)：${bandMeta.label}区，位置 ${bollTrack.positionPct.toFixed(0)}%，下轨 ${bollTrack.lower.toFixed(2)} / 中轨 ${bollTrack.middle.toFixed(2)} / 上轨 ${bollTrack.upper.toFixed(2)}`
+          : `${periodMeta.label} BOLL 暂无数据`;
+      return `<span class="boll-track ${bandMeta?.className || "unknown"}" title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
+    })
+    .join("");
   const historicalYieldText = Number.isFinite(
     quote.historicalMaxDividendYield10y,
   )
@@ -378,7 +425,7 @@ function rowTemplate(quote) {
     <tr data-code="${escapeHtml(quote.code)}">
       <td>
         <div class="stock-name">
-          <a class="stock-name-link" href="${escapeHtml(quoteUrl)}" target="_blank" rel="noopener noreferrer" title="在同花顺查看 ${escapeHtml(quote.name)} 行情" aria-label="在同花顺查看 ${escapeHtml(quote.name)} 行情">
+          <a class="stock-name-link" href="${escapeHtml(quoteUrl)}" target="_blank" rel="noopener noreferrer" title="在雪球查看 ${escapeHtml(quote.name)} 行情" aria-label="在雪球查看 ${escapeHtml(quote.name)} 行情">
             <span class="stock-link-label">${escapeHtml(quote.name)}</span>
             <span class="external-link-mark" aria-hidden="true">↗</span>
           </a>
@@ -388,6 +435,7 @@ function rowTemplate(quote) {
           <span class="industry-tag" title="同花顺申万行业：${escapeHtml(quote.industryDetail)}">${escapeHtml(quote.industry)}</span>
           <span class="price-track ${track?.className || "unknown"}" title="${escapeHtml(trackTitle)}">${escapeHtml(trackText)}</span>
         </div>
+        <div class="boll-track-list" aria-label="BOLL 日周月轨道">${bollTrackRows}</div>
       </td>
       <td class="numeric">
         <span class="metric ${declineClass(changeValue)}">${formatPercent(changeValue)}</span>
@@ -425,6 +473,12 @@ function matchesFilters(quote) {
   const metric = metricFor(quote);
   if (!Number.isFinite(metric)) return false;
   if (state.threshold > 0 && metric > -state.threshold) return false;
+  if (
+    state.bollBand !== "all" &&
+    quote.bollTracks[state.bollPeriod]?.band !== state.bollBand
+  ) {
+    return false;
+  }
   if (state.period === "largestDaily") {
     return (
       quote.changePct < 0 &&
@@ -464,6 +518,8 @@ function render() {
   const filterMeta = FILTER_META[state.period];
   elements.watchlistTitle.textContent = filterMeta.title;
   elements.changeHeaderLabel.textContent = filterMeta.header;
+  elements.bollBandFilter.value = state.bollBand;
+  elements.bollPeriodFilter.value = state.bollPeriod;
   elements.sortOrder.value = state.sortOrder;
   const declineFirst = state.sortOrder === "decline";
   const currentSortLabel = declineFirst ? "从低到高，跌幅优先" : "从高到低，涨幅优先";
@@ -730,6 +786,20 @@ elements.periodFilter.addEventListener("change", (event) => {
 });
 elements.thresholdFilter.addEventListener("change", (event) => {
   state.threshold = Number(event.target.value) || 0;
+  state.page = 1;
+  render();
+});
+elements.bollPeriodFilter.addEventListener("change", (event) => {
+  state.bollPeriod = BOLL_PERIOD_META[event.target.value]
+    ? event.target.value
+    : "day";
+  state.page = 1;
+  render();
+});
+elements.bollBandFilter.addEventListener("change", (event) => {
+  state.bollBand = BOLL_BAND_META[event.target.value]
+    ? event.target.value
+    : "all";
   state.page = 1;
   render();
 });

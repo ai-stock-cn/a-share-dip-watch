@@ -292,6 +292,7 @@ button:disabled {
   min-height: 66px;
   margin-bottom: 12px;
   padding: 10px 0;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 20px;
   border-top: 1px solid var(--line);
@@ -300,6 +301,10 @@ button:disabled {
 .filter-group,
 .page-settings {
   gap: 12px;
+}
+
+.filter-group {
+  flex-wrap: wrap;
 }
 
 .control-field {
@@ -506,6 +511,30 @@ td.numeric {
 
 .price-track.high {
   color: var(--positive);
+}
+
+.boll-track-list {
+  margin-top: 5px;
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.boll-track {
+  padding: 1px 4px;
+  color: var(--ink-muted);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.boll-track.unknown {
+  opacity: 0.65;
 }
 
 .metric-note {
@@ -933,6 +962,12 @@ noscript {
     width: 100%;
   }
 
+  .filter-group {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px 8px;
+  }
+
   .filter-group .control-field {
     min-width: 0;
     flex: 1 1 0;
@@ -942,6 +977,10 @@ noscript {
 
   .control-field select {
     width: 100%;
+    min-width: 0;
+  }
+
+  .control-field.compact select {
     min-width: 0;
   }
 
