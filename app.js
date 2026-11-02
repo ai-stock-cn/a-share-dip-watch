@@ -359,6 +359,22 @@ function formatPrice(value) {
   return `¥${value.toFixed(2)}`;
 }
 
+function formatBollValue(value) {
+  if (!Number.isFinite(value)) return "--";
+  return value.toFixed(3);
+}
+
+function formatBollPrice(value) {
+  if (!Number.isFinite(value)) return "--";
+  return `¥${formatBollValue(value)}`;
+}
+
+function formatBollPercent(value) {
+  if (!Number.isFinite(value)) return "--";
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value.toFixed(3)}%`;
+}
+
 function getBollLowerRailSignal(price, lowerRail) {
   if (!Number.isFinite(price) || !Number.isFinite(lowerRail) || lowerRail <= 0) {
     return {
@@ -372,7 +388,7 @@ function getBollLowerRailSignal(price, lowerRail) {
   if (distancePct < 0) {
     return {
       status: "below",
-      label: `已跌破下轨 ${distancePct.toFixed(2)}%`,
+      label: `已跌破下轨 ${formatBollPercent(distancePct)}`,
       distancePct,
     };
   }
@@ -380,14 +396,14 @@ function getBollLowerRailSignal(price, lowerRail) {
   if (distancePct <= 2) {
     return {
       status: "near",
-      label: `接近下轨 +${distancePct.toFixed(2)}%`,
+      label: `接近下轨 ${formatBollPercent(distancePct)}`,
       distancePct,
     };
   }
 
   return {
     status: "normal",
-    label: `距下轨 +${distancePct.toFixed(2)}%`,
+    label: `距下轨 ${formatBollPercent(distancePct)}`,
     distancePct,
   };
 }
@@ -461,7 +477,7 @@ function rowTemplate(quote) {
         Number.isFinite(bollTrack.lower) &&
         Number.isFinite(bollTrack.middle) &&
         Number.isFinite(bollTrack.upper)
-          ? `${periodMeta.label} BOLL(20, 2σ)：${bandMeta.label}区，位置 ${bollTrack.positionPct.toFixed(0)}%，下轨 ${bollTrack.lower.toFixed(2)} / 中轨 ${bollTrack.middle.toFixed(2)} / 上轨 ${bollTrack.upper.toFixed(2)}`
+          ? `${periodMeta.label} BOLL(20, 2σ)：${bandMeta.label}区，位置 ${bollTrack.positionPct.toFixed(0)}%，下轨 ${formatBollValue(bollTrack.lower)} / 中轨 ${formatBollValue(bollTrack.middle)} / 上轨 ${formatBollValue(bollTrack.upper)}`
           : `${periodMeta.label} BOLL 暂无数据`;
       return `<span class="boll-track ${bandMeta?.className || "unknown"}" title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
     })
@@ -476,7 +492,7 @@ function rowTemplate(quote) {
     Number.isFinite(activeLowerRailSignal.distancePct) &&
     Number.isFinite(activeBollTrack?.lower) &&
     Number.isFinite(quote.price)
-      ? `${activeBollPeriod.label} BOLL 下轨距离：(现价 ${formatPrice(quote.price)} - 下轨 ${formatPrice(activeBollTrack.lower)}) ÷ 下轨 ${formatPrice(activeBollTrack.lower)} = ${activeLowerRailSignal.distancePct.toFixed(2)}%`
+      ? `${activeBollPeriod.label} BOLL 下轨距离：(现价 ${formatPrice(quote.price)} - 下轨 ${formatBollPrice(activeBollTrack.lower)}) ÷ 下轨 ${formatBollPrice(activeBollTrack.lower)} = ${formatBollPercent(activeLowerRailSignal.distancePct)}`
       : `${activeBollPeriod.label} BOLL 下轨距离暂无数据`;
   const historicalYieldText = Number.isFinite(
     quote.historicalMaxDividendYield10y,
@@ -528,7 +544,7 @@ function rowTemplate(quote) {
         <div class="boll-track-list" aria-label="BOLL 日周月轨道">${bollTrackRows}</div>
         <div class="boll-lower-distance ${activeLowerRailSignal.status}" title="${escapeHtml(activeLowerRailTitle)}" aria-label="${escapeHtml(activeBollPeriod.label)} BOLL ${escapeHtml(activeLowerRailSignal.label)}">
           <span>${escapeHtml(activeLowerRailSignal.label)}</span>
-          <small>${escapeHtml(activeBollPeriod.shortLabel)}线下轨 ${escapeHtml(formatPrice(activeBollTrack?.lower))}</small>
+          <small>${escapeHtml(activeBollPeriod.shortLabel)}线下轨 ${escapeHtml(formatBollPrice(activeBollTrack?.lower))}</small>
         </div>
       </td>
       <td class="history-yield-cell">
