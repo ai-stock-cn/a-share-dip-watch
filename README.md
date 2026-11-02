@@ -26,4 +26,4 @@ python3 -m http.server 4173
 
 ## 部署
 
-仓库设置中进入 **Pages**，将部署来源设为 **Deploy from a branch**，选择 `main` 分支和根目录。
+仓库设置中进入 **Pages**，将部署来源设为 **GitHub Actions**。`Update market data and deploy Pages` 工作流会同步行情、提交数据并直接发布网站。
