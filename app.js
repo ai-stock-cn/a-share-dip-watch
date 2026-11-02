@@ -143,8 +143,9 @@ const DEFAULT_CODES = [
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v7",
+  watchlist: "a-share-dip-watch:watchlist:v8",
   legacyWatchlists: [
+    "a-share-dip-watch:watchlist:v7",
     "a-share-dip-watch:watchlist:v6",
     "a-share-dip-watch:watchlist:v5",
     "a-share-dip-watch:watchlist:v4",
@@ -263,6 +264,7 @@ function loadWatchlist() {
   const migrated = [
     ...new Set([
       ...(Array.isArray(legacy) ? legacy : BASE_CODES),
+      ...BASE_CODES,
       ...BANK_CODES,
       ...EXTRA_CODES,
     ]),
@@ -593,6 +595,7 @@ function matchesFilters(quote) {
     const searchScore = Math.min(
       fuzzyMatchScore(normalizeStockSearch(quote.name), searchQuery),
       fuzzyMatchScore(quote.code, searchQuery),
+      fuzzyMatchScore(normalizeStockSearch(quote.industryDetail), searchQuery),
     );
     if (!Number.isFinite(searchScore)) return false;
   }
