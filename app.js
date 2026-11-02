@@ -233,7 +233,7 @@ const state = {
   period: "daily",
   threshold: 0,
   page: 1,
-  pageSize: 10,
+  pageSize: 50,
   sortOrder: "decline",
 };
 
@@ -915,7 +915,7 @@ elements.changeSortButton.addEventListener("click", () => {
   render();
 });
 elements.pageSizeSelect.addEventListener("change", (event) => {
-  state.pageSize = Number(event.target.value) || 10;
+  state.pageSize = Number(event.target.value) || 50;
   state.page = 1;
   render();
 });
