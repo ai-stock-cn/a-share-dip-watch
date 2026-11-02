@@ -1,24 +1,54 @@
 "use strict";
 
 const DEFAULT_CODES = [
-  "601838",
-  "600919",
-  "601009",
+  "000001",
+  "000333",
+  "000423",
+  "000538",
+  "000651",
+  "000807",
+  "000895",
+  "000933",
+  "002032",
   "002142",
+  "002508",
+  "600011",
+  "600028",
   "600036",
-  "601288",
-  "601328",
+  "600050",
+  "600406",
+  "600690",
+  "600750",
+  "600795",
+  "600863",
+  "600886",
+  "600887",
+  "600900",
+  "600919",
+  "600938",
+  "600941",
+  "601009",
+  "601088",
   "601166",
+  "601229",
+  "601288",
+  "601318",
+  "601328",
+  "601398",
+  "601728",
+  "601838",
+  "601857",
+  "601899",
+  "601939",
+  "601985",
   "601988",
   "601998",
-  "601939",
-  "601398",
-  "000001",
+  "603288",
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v1",
-  market: "a-share-dip-watch:market:v1",
+  watchlist: "a-share-dip-watch:watchlist:v2",
+  market: "a-share-dip-watch:market:v2",
 };
 
 const TRASH_ICON = `
@@ -71,7 +101,7 @@ async function fetchMarket() {
   });
   if (!response.ok) throw new Error(`行情文件读取失败 (${response.status})`);
   const data = await response.json();
-  if (!data?.stocks || Object.keys(data.stocks).length < 1000) {
+  if (!data?.stocks || Object.keys(data.stocks).length !== DEFAULT_CODES.length) {
     throw new Error("行情文件不完整");
   }
   return data;
@@ -259,7 +289,7 @@ function addStock(event) {
   }
   const quote = quoteFor(code);
   if (!quote || !Number.isFinite(quote.price)) {
-    elements.formError.textContent = "未找到这只沪深 A 股";
+    elements.formError.textContent = "不在这 43 只股票清单中";
     return;
   }
 

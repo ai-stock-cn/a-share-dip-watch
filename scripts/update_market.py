@@ -19,6 +19,7 @@ DATA_DIR = ROOT / "data"
 MARKET_PATH = DATA_DIR / "market.json"
 DIVIDEND_PATH = DATA_DIR / "dividends.json"
 CODES_PATH = DATA_DIR / "codes.json"
+EXPECTED_UNIVERSE_SIZE = 43
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 USER_AGENT = "Mozilla/5.0 (compatible; AShareDipWatch/1.0; +https://github.com/)"
 
@@ -59,18 +60,41 @@ def request_text(
     raise RuntimeError("request failed")
 
 
-def load_codes() -> list[str]:
+def load_universe() -> list[dict[str, str]]:
     payload = json.loads(CODES_PATH.read_text(encoding="utf-8"))
-    codes = [str(item["code"]) for item in payload if str(item.get("code", ""))[:1] in "0236"]
-    if len(codes) < 3000:
-        raise RuntimeError(f"stock code list is incomplete: {len(codes)} rows")
-    return sorted(set(codes))
+    universe: dict[str, dict[str, str]] = {}
+    for item in payload:
+        code = str(item.get("code", ""))
+        name = str(item.get("name", "")).strip()
+        if not re.fullmatch(r"[0236]\d{5}", code) or not name:
+            raise RuntimeError(f"invalid stock entry: {item!r}")
+        universe[code] = {
+            "code": code,
+            "name": name,
+            "category": str(item.get("category", "")),
+        }
+    if len(universe) != EXPECTED_UNIVERSE_SIZE:
+        raise RuntimeError(
+            f"stock universe must contain {EXPECTED_UNIVERSE_SIZE} rows, "
+            f"found {len(universe)}"
+        )
+    return [universe[code] for code in sorted(universe)]
 
 
-def fetch_quotes() -> tuple[dict[str, dict], datetime | None]:
-    codes = load_codes()
+def fetch_quotes(
+    universe: list[dict[str, str]],
+) -> tuple[dict[str, dict], datetime | None]:
+    codes = [item["code"] for item in universe]
     chunk_size = 200
-    stocks: dict[str, dict] = {}
+    stocks: dict[str, dict] = {
+        item["code"]: {
+            "name": item["name"],
+            "price": None,
+            "changePct": None,
+        }
+        for item in universe
+    }
+    quoted_codes: set[str] = set()
     quote_times: list[datetime] = []
     for offset in range(0, len(codes), chunk_size):
         chunk = codes[offset : offset + chunk_size]
@@ -85,6 +109,8 @@ def fetch_quotes() -> tuple[dict[str, dict], datetime | None]:
             if len(fields) < 33:
                 continue
             code = fields[2]
+            if code not in stocks:
+                continue
             price = number_or_none(fields[3])
             change_pct = number_or_none(fields[32])
             try:
@@ -95,75 +121,78 @@ def fetch_quotes() -> tuple[dict[str, dict], datetime | None]:
             except ValueError:
                 pass
             stocks[code] = {
-                "name": fields[1] or code,
+                "name": fields[1] or stocks[code]["name"],
                 "price": price,
                 "changePct": change_pct,
             }
+            quoted_codes.add(code)
         completed = min(offset + chunk_size, len(codes))
-        if offset == 0 or completed % 1000 == 0 or completed == len(codes):
-            print(f"Quote progress: {completed} codes, {len(stocks)} quotes", flush=True)
+        print(
+            f"Quote progress: {completed} codes, {len(quoted_codes)} quotes",
+            flush=True,
+        )
         time.sleep(0.4)
 
-    if len(stocks) < max(3000, int(len(codes) * 0.95)):
+    minimum_quotes = (len(codes) * 95 + 99) // 100
+    if len(quoted_codes) < minimum_quotes:
         raise RuntimeError(
-            f"quote response is incomplete: {len(stocks)} of {len(codes)} rows"
+            f"quote response is incomplete: {len(quoted_codes)} of {len(codes)} rows"
         )
     return stocks, max(quote_times, default=None)
 
 
-def load_fresh_dividend_cache(fiscal_year: int) -> dict[str, float] | None:
+def load_fresh_dividend_cache(
+    fiscal_year: int, codes: list[str]
+) -> dict[str, float] | None:
     if not DIVIDEND_PATH.exists():
         return None
     try:
         payload = json.loads(DIVIDEND_PATH.read_text(encoding="utf-8"))
         generated_at = datetime.fromisoformat(payload["generatedAt"])
         age = datetime.now(timezone.utc).timestamp() - generated_at.timestamp()
-        if payload.get("fiscalYear") == fiscal_year and age < DIVIDEND_MAX_AGE_SECONDS:
+        if (
+            payload.get("fiscalYear") == fiscal_year
+            and payload.get("codes") == codes
+            and age < DIVIDEND_MAX_AGE_SECONDS
+        ):
             return {key: float(value) for key, value in payload["dividends"].items()}
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
         return None
     return None
 
 
-def fetch_dividends(fiscal_year: int) -> dict[str, float]:
-    cached = load_fresh_dividend_cache(fiscal_year)
+def fetch_dividends(fiscal_year: int, codes: list[str]) -> dict[str, float]:
+    cached = load_fresh_dividend_cache(fiscal_year, codes)
     if cached is not None:
         return cached
 
-    totals: dict[str, float] = {}
+    totals: dict[str, float] = {code: 0.0 for code in codes}
     seen: set[tuple[str, str, str, str]] = set()
-    page = 1
-    total_pages = None
     found_target_year = False
 
-    while total_pages is None or page <= total_pages:
+    for index, requested_code in enumerate(codes, start=1):
         payload = request_json(
             "https://datacenter-web.eastmoney.com/api/data/v1/get",
             {
                 "sortColumns": "REPORT_DATE",
                 "sortTypes": -1,
-                "pageSize": 500,
-                "pageNumber": page,
+                "pageSize": 100,
+                "pageNumber": 1,
                 "reportName": "RPT_SHAREBONUS_DET",
                 "columns": "SECURITY_CODE,REPORT_DATE,PRETAX_BONUS_RMB,IMPL_PLAN_PROFILE,EX_DIVIDEND_DATE",
+                "filter": f'(SECURITY_CODE="{requested_code}")',
                 "source": "WEB",
                 "client": "WEB",
             },
         )
         result = payload.get("result") or {}
         rows = result.get("data") or []
-        total_pages = int(result.get("pages") or 0)
-        if not rows:
-            break
-
-        row_years: list[int] = []
         for row in rows:
             report_date = str(row.get("REPORT_DATE") or "")
             try:
                 year = int(report_date[:4])
             except ValueError:
                 continue
-            row_years.append(year)
             if year != fiscal_year:
                 continue
             found_target_year = True
@@ -182,12 +211,13 @@ def fetch_dividends(fiscal_year: int) -> dict[str, float]:
             seen.add(event_key)
             totals[code] = totals.get(code, 0.0) + cash_per_ten / 10
 
-        if row_years and max(row_years) < fiscal_year:
-            break
-        if found_target_year and row_years and min(row_years) < fiscal_year:
-            break
-        page += 1
-        time.sleep(0.35)
+        if index % 10 == 0 or index == len(codes):
+            payers = sum(value > 0 for value in totals.values())
+            print(
+                f"Dividend progress: {index} codes, {payers} payers",
+                flush=True,
+            )
+        time.sleep(0.25)
 
     if not found_target_year:
         raise RuntimeError(f"no dividend records found for fiscal year {fiscal_year}")
@@ -198,6 +228,7 @@ def fetch_dividends(fiscal_year: int) -> dict[str, float]:
         {
             "fiscalYear": fiscal_year,
             "generatedAt": generated_at,
+            "codes": codes,
             "dividends": {code: round(value, 8) for code, value in sorted(totals.items())},
         },
     )
@@ -232,8 +263,10 @@ def write_json(path: Path, payload: dict) -> None:
 def main() -> None:
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
     fiscal_year = now.year - 1
-    stocks, quote_timestamp = fetch_quotes()
-    dividends = fetch_dividends(fiscal_year)
+    universe = load_universe()
+    codes = [item["code"] for item in universe]
+    stocks, quote_timestamp = fetch_quotes(universe)
+    dividends = fetch_dividends(fiscal_year, codes)
 
     for code, stock in stocks.items():
         stock["dividendPerShare"] = round(dividends.get(code, 0.0), 8)
@@ -252,7 +285,8 @@ def main() -> None:
     )
     print(
         f"Updated {MARKET_PATH}: {len(stocks)} stocks, "
-        f"{len(dividends)} dividend payers, fiscal year {fiscal_year}"
+        f"{sum(value > 0 for value in dividends.values())} dividend payers, "
+        f"fiscal year {fiscal_year}"
     )
 
 
