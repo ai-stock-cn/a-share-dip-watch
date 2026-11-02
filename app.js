@@ -373,7 +373,11 @@ function escapeHtml(value) {
 
 function stockQuoteUrl(code) {
   const exchange = code.startsWith("6") ? "SH" : "SZ";
-  return `https://xueqiu.com/S/${exchange}${code}`;
+  const chartParams = new URLSearchParams({
+    period: "day",
+    indicator: "boll",
+  });
+  return `https://xueqiu.com/S/${exchange}${code}?${chartParams}`;
 }
 
 function metricFor(quote) {
@@ -462,7 +466,7 @@ function rowTemplate(quote) {
     <tr data-code="${escapeHtml(quote.code)}">
       <td>
         <div class="stock-name">
-          <a class="stock-name-link" href="${escapeHtml(quoteUrl)}" target="_blank" rel="noopener noreferrer" title="在雪球查看 ${escapeHtml(quote.name)} 行情" aria-label="在雪球查看 ${escapeHtml(quote.name)} 行情">
+          <a class="stock-name-link" href="${escapeHtml(quoteUrl)}" target="_blank" rel="noopener noreferrer" title="在雪球查看 ${escapeHtml(quote.name)} 日 K / BOLL 行情" aria-label="在雪球查看 ${escapeHtml(quote.name)} 日 K / BOLL 行情">
             <span class="stock-link-label">${escapeHtml(quote.name)}</span>
             <span class="external-link-mark" aria-hidden="true">↗</span>
           </a>
