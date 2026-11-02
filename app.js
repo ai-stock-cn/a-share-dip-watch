@@ -190,6 +190,7 @@ const elements = {
   addDialog: document.querySelector("#addDialog"),
   addForm: document.querySelector("#addForm"),
   alertCount: document.querySelector("#alertCount"),
+  alertShortcut: document.querySelector("#alertShortcut"),
   bollBandFilter: document.querySelector("#bollBandFilter"),
   bollPeriodFilter: document.querySelector("#bollPeriodFilter"),
   closeDialogButton: document.querySelector("#closeDialogButton"),
@@ -199,6 +200,7 @@ const elements = {
   changeSortIcon: document.querySelector("#changeSortIcon"),
   confirmAddButton: document.querySelector("#confirmAddButton"),
   severeDeclineCount: document.querySelector("#severeDeclineCount"),
+  severeDeclineShortcut: document.querySelector("#severeDeclineShortcut"),
   formError: document.querySelector("#formError"),
   industryFilter: document.querySelector("#industryFilter"),
   marketStatus: document.querySelector("#marketStatus"),
@@ -217,6 +219,7 @@ const elements = {
   thresholdFilter: document.querySelector("#thresholdFilter"),
   toast: document.querySelector("#toast"),
   updatedAt: document.querySelector("#updatedAt"),
+  watchlistSection: document.querySelector("#watchlistSection"),
   watchlistTitle: document.querySelector("#watchlistTitle"),
 };
 
@@ -585,7 +588,9 @@ function render() {
   elements.changeHeaderLabel.textContent = filterMeta.header;
   elements.bollBandFilter.value = state.bollBand;
   elements.bollPeriodFilter.value = state.bollPeriod;
+  elements.periodFilter.value = state.period;
   elements.sortOrder.value = state.sortOrder;
+  elements.thresholdFilter.value = String(state.threshold);
   const declineFirst = state.sortOrder === "decline";
   const currentSortLabel = declineFirst ? "从低到高，跌幅优先" : "从高到低，涨幅优先";
   const nextSortLabel = declineFirst ? "从高到低" : "从低到高";
@@ -839,10 +844,32 @@ function removeStock(code) {
   }
 }
 
+function showDeclineShortcut(threshold) {
+  state.period = "daily";
+  state.threshold = threshold;
+  state.industry = "all";
+  state.bollBand = "all";
+  state.sortOrder = "decline";
+  state.page = 1;
+  render();
+  elements.watchlistSection.scrollIntoView({
+    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth",
+    block: "start",
+  });
+}
+
 elements.addButton.addEventListener("click", openAddDialog);
 elements.closeDialogButton.addEventListener("click", closeAddDialog);
 elements.addForm.addEventListener("submit", addStock);
 elements.refreshButton.addEventListener("click", refresh);
+elements.severeDeclineShortcut.addEventListener("click", () => {
+  showDeclineShortcut(5);
+});
+elements.alertShortcut.addEventListener("click", () => {
+  showDeclineShortcut(3);
+});
 elements.periodFilter.addEventListener("change", (event) => {
   if (!FILTER_META[event.target.value]) return;
   state.period = event.target.value;

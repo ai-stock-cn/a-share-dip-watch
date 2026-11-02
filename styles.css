@@ -226,6 +226,21 @@ button:disabled {
   font-weight: 720;
 }
 
+.summary-count-button {
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.summary-count-button:hover strong {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .summary-strip .summary-time strong {
   font-size: 14px;
   font-weight: 650;
