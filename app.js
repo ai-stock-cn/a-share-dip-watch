@@ -198,7 +198,7 @@ const elements = {
   changeSortButton: document.querySelector("#changeSortButton"),
   changeSortIcon: document.querySelector("#changeSortIcon"),
   confirmAddButton: document.querySelector("#confirmAddButton"),
-  declineCount: document.querySelector("#declineCount"),
+  severeDeclineCount: document.querySelector("#severeDeclineCount"),
   formError: document.querySelector("#formError"),
   marketStatus: document.querySelector("#marketStatus"),
   nextPageButton: document.querySelector("#nextPageButton"),
@@ -573,8 +573,8 @@ function render() {
   elements.previousPageButton.disabled = state.page <= 1;
   elements.nextPageButton.disabled = state.page >= totalPages;
   elements.stockCount.textContent = String(state.codes.length);
-  elements.declineCount.textContent = String(
-    availableQuotes.filter((quote) => quote.changePct < 0).length,
+  elements.severeDeclineCount.textContent = String(
+    availableQuotes.filter((quote) => quote.changePct <= -5).length,
   );
   elements.alertCount.textContent = String(
     availableQuotes.filter((quote) => quote.changePct <= -3).length,
