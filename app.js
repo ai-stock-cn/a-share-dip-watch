@@ -151,7 +151,7 @@ const STORAGE_KEYS = {
     "a-share-dip-watch:watchlist:v3",
     "a-share-dip-watch:watchlist:v2",
   ],
-  market: "a-share-dip-watch:market:v11",
+  market: "a-share-dip-watch:market:v12",
 };
 
 const FILTER_META = {
@@ -316,11 +316,19 @@ function quoteFor(code) {
       stock.historicalMaxDividendYield10y,
     ),
     historicalMaxDividendYear: numberOrNull(stock.historicalMaxDividendYear),
+    historicalMaxDividendPrice: numberOrNull(
+      stock.historicalMaxDividendPrice,
+    ),
+    historicalMaxDividendPerShare: numberOrNull(
+      stock.historicalMaxDividendPerShare,
+    ),
     recentDividendYields3y: (stock.recentDividendYields3y || [])
       .map((item) => ({
         year: numberOrNull(item.year),
         dividendYear: numberOrNull(item.dividendYear),
         yieldPct: numberOrNull(item.yieldPct),
+        priceUsed: numberOrNull(item.priceUsed),
+        dividendPerShare: numberOrNull(item.dividendPerShare),
       }))
       .filter((item) => Number.isFinite(item.year)),
   };
@@ -335,6 +343,11 @@ function formatPercent(value) {
 function formatYield(value) {
   if (!Number.isFinite(value)) return "--";
   return `${value.toFixed(2)}%`;
+}
+
+function formatPrice(value) {
+  if (!Number.isFinite(value)) return "--";
+  return `¥${value.toFixed(2)}`;
 }
 
 function declineClass(changePct) {
@@ -372,6 +385,12 @@ function rowTemplate(quote) {
   const yearNote = Number.isFinite(quote.dividendYear)
     ? `${quote.dividendYear} 年度`
     : "暂无分红数据";
+  const currentYieldTitle =
+    Number.isFinite(dividendYield) &&
+    Number.isFinite(quote.dividendPerShare) &&
+    Number.isFinite(quote.price)
+      ? `${yearNote}税前每股分红 ${formatPrice(quote.dividendPerShare)} ÷ 现价 ${formatPrice(quote.price)} = ${formatYield(dividendYield)}`
+      : yearNote;
   const track = PRICE_TRACK_META[quote.priceTrackBand1y] || null;
   const trackText =
     track && Number.isFinite(quote.priceTrackPosition1y)
@@ -406,18 +425,31 @@ function rowTemplate(quote) {
   )
     ? `峰值 ${formatYield(quote.historicalMaxDividendYield10y)}`
     : "峰值 --";
+  const historicalPriceText = Number.isFinite(
+    quote.historicalMaxDividendPrice,
+  )
+    ? `低价 ${formatPrice(quote.historicalMaxDividendPrice)}`
+    : "低价 --";
   const historicalYieldTitle =
     Number.isFinite(quote.historicalMaxDividendYield10y) &&
-    Number.isFinite(quote.historicalMaxDividendYear)
-      ? `近10年最高静态股息率：${quote.historicalMaxDividendYear} 年度分红 / ${quote.historicalMaxDividendYear + 1} 年最低周价`
+    Number.isFinite(quote.historicalMaxDividendYear) &&
+    Number.isFinite(quote.historicalMaxDividendPrice) &&
+    Number.isFinite(quote.historicalMaxDividendPerShare)
+      ? `近10年峰值：${quote.historicalMaxDividendYear} 年度每股分红 ${formatPrice(quote.historicalMaxDividendPerShare)} ÷ ${quote.historicalMaxDividendYear + 1} 年最低周价 ${formatPrice(quote.historicalMaxDividendPrice)} = ${formatYield(quote.historicalMaxDividendYield10y)}`
       : "暂无近10年历史股息率";
   const recentYieldRows = quote.recentDividendYields3y
     .map((item) => {
       const yieldText = formatYield(item.yieldPct);
-      const itemTitle = Number.isFinite(item.yieldPct)
-        ? `${item.year} 年股息率：${item.dividendYear} 年度分红 / ${item.year} 年最低周价`
+      const priceText = Number.isFinite(item.priceUsed)
+        ? `低价 ${formatPrice(item.priceUsed)}`
+        : "低价 --";
+      const itemTitle =
+        Number.isFinite(item.yieldPct) &&
+        Number.isFinite(item.priceUsed) &&
+        Number.isFinite(item.dividendPerShare)
+        ? `${item.year} 年股息率：${item.dividendYear} 年度每股分红 ${formatPrice(item.dividendPerShare)} ÷ ${item.year} 年最低周价 ${formatPrice(item.priceUsed)} = ${formatYield(item.yieldPct)}`
         : `${item.year} 年暂无完整数据`;
-      return `<span class="recent-yield-item" title="${escapeHtml(itemTitle)}"><span>${item.year}</span><strong>${escapeHtml(yieldText)}</strong></span>`;
+      return `<span class="recent-yield-item" title="${escapeHtml(itemTitle)}"><span>${item.year}</span><span class="recent-yield-values"><strong>${escapeHtml(yieldText)}</strong><small>${escapeHtml(priceText)}</small></span></span>`;
     })
     .join("");
   const quoteUrl = stockQuoteUrl(quote.code);
@@ -441,9 +473,11 @@ function rowTemplate(quote) {
         <span class="metric ${declineClass(changeValue)}">${formatPercent(changeValue)}</span>
       </td>
       <td class="numeric">
-        <div class="yield-value" title="${escapeHtml(yearNote)}">${formatPercent(dividendYield)}</div>
+        <div class="yield-value" title="${escapeHtml(currentYieldTitle)}">${formatPercent(dividendYield)}</div>
+        <div class="current-yield-price">现价 ${escapeHtml(formatPrice(quote.price))}</div>
         <div class="metric-note">
           <span class="metric-note-peak" title="${escapeHtml(historicalYieldTitle)}">${escapeHtml(historicalYieldText)}</span>
+          <span class="metric-note-peak-price">${escapeHtml(historicalPriceText)}</span>
           <span class="recent-yield-list" aria-label="最近三年历史股息率">${recentYieldRows}</span>
         </div>
       </td>

@@ -541,9 +541,27 @@ td.numeric {
   margin-top: 4px;
 }
 
-.metric-note-peak {
+.current-yield-price,
+.metric-note-peak,
+.metric-note-peak-price {
+  color: var(--ink-muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.current-yield-price,
+.metric-note-peak,
+.metric-note-peak-price {
   display: block;
   white-space: nowrap;
+}
+
+.current-yield-price {
+  margin-top: 2px;
+}
+
+.metric-note-peak {
+  font-size: 11px;
 }
 
 .recent-yield-list {
@@ -554,16 +572,29 @@ td.numeric {
 
 .recent-yield-item {
   display: flex;
+  align-items: flex-start;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 5px;
   white-space: nowrap;
 }
 
-.recent-yield-item strong {
-  min-width: 44px;
+.recent-yield-values {
+  min-width: 55px;
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+}
+
+.recent-yield-values strong {
   color: var(--ink-muted);
   font-weight: 650;
   text-align: right;
+}
+
+.recent-yield-values small {
+  color: var(--ink-muted);
+  font-size: 9px;
+  font-weight: 500;
 }
 
 .metric {
@@ -1010,6 +1041,12 @@ noscript {
   th.numeric,
   td.numeric {
     width: 27%;
+  }
+
+  th:nth-child(3),
+  td:nth-child(3) {
+    padding-right: 3px;
+    padding-left: 3px;
   }
 
   .action-column,

@@ -717,9 +717,11 @@ def calculate_historical_max_dividend_yield(
     annual_dividends: dict[str, float],
     annual_low_prices: dict[str, float],
     fiscal_year: int,
-) -> tuple[float | None, int | None]:
+) -> tuple[float | None, int | None, float | None, float | None]:
     best_yield = None
     best_year = None
+    best_price = None
+    best_dividend = None
     first_year = fiscal_year - HISTORICAL_DIVIDEND_YEARS + 1
     for year in range(first_year, fiscal_year + 1):
         dividend = number_or_none(annual_dividends.get(str(year)))
@@ -730,9 +732,13 @@ def calculate_historical_max_dividend_yield(
         if best_yield is None or dividend_yield > best_yield:
             best_yield = dividend_yield
             best_year = year
+            best_price = next_year_low
+            best_dividend = dividend
     return (
         round(best_yield, 4) if best_yield is not None else None,
         best_year,
+        round(best_price, 4) if best_price is not None else None,
+        round(best_dividend, 8) if best_dividend is not None else None,
     )
 
 
@@ -747,6 +753,8 @@ def calculate_recent_dividend_yields(
         dividend = number_or_none(annual_dividends.get(str(dividend_year)))
         annual_low = number_or_none(annual_low_prices.get(str(year)))
         dividend_yield = None
+        price_used = None
+        dividend_used = None
         if (
             dividend is not None
             and dividend > 0
@@ -754,11 +762,15 @@ def calculate_recent_dividend_yields(
             and annual_low > 0
         ):
             dividend_yield = round(dividend / annual_low * 100, 4)
+            price_used = round(annual_low, 4)
+            dividend_used = round(dividend, 8)
         yields.append(
             {
                 "year": year,
                 "dividendYear": dividend_year,
                 "yieldPct": dividend_yield,
+                "priceUsed": price_used,
+                "dividendPerShare": dividend_used,
             }
         )
     return yields
@@ -806,13 +818,20 @@ def main() -> None:
             {"threeMonthChangePct": None, "maxDailyDecline3m": None},
         )
         stock.update(history)
-        historical_yield, historical_year = calculate_historical_max_dividend_yield(
+        (
+            historical_yield,
+            historical_year,
+            historical_price,
+            historical_dividend,
+        ) = calculate_historical_max_dividend_yield(
             annual_dividends.get(code, {}),
             history.get("annualLowPrices10y") or {},
             fiscal_year,
         )
         stock["historicalMaxDividendYield10y"] = historical_yield
         stock["historicalMaxDividendYear"] = historical_year
+        stock["historicalMaxDividendPrice"] = historical_price
+        stock["historicalMaxDividendPerShare"] = historical_dividend
         stock["recentDividendYields3y"] = calculate_recent_dividend_yields(
             annual_dividends.get(code, {}),
             history.get("annualLowPrices10y") or {},
