@@ -1,21 +1,29 @@
-name: Update market data
+name: Update market data and deploy Pages
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     - cron: "*/15 1-7 * * 1-5"
   workflow_dispatch:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
-  group: update-market-data
-  cancel-in-progress: true
+  group: market-data-and-pages
+  cancel-in-progress: false
 
 jobs:
-  update:
+  update-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,3 +42,12 @@ jobs:
             git commit -m "data: refresh A-share market snapshot"
             git push
           fi
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
