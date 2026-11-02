@@ -548,10 +548,6 @@ td.numeric {
   background: var(--severe-soft);
 }
 
-.metric.rise {
-  color: var(--positive);
-}
-
 .metric.flat,
 .yield-value {
   color: var(--ink);

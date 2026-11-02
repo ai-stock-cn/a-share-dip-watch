@@ -311,7 +311,6 @@ function declineClass(changePct) {
   if (!Number.isFinite(changePct)) return "flat";
   if (changePct <= -5) return "severe";
   if (changePct <= -3) return "moderate";
-  if (changePct > 0) return "rise";
   return "flat";
 }
 
