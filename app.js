@@ -195,9 +195,10 @@ const elements = {
   refreshButton: document.querySelector("#refreshButton"),
   resultCount: document.querySelector("#resultCount"),
   sortOrder: document.querySelector("#sortOrder"),
-  stockCode: document.querySelector("#stockCode"),
   stockCount: document.querySelector("#stockCount"),
+  stockQuery: document.querySelector("#stockQuery"),
   stockRows: document.querySelector("#stockRows"),
+  stockSuggestions: document.querySelector("#stockSuggestions"),
   thresholdFilter: document.querySelector("#thresholdFilter"),
   toast: document.querySelector("#toast"),
   updatedAt: document.querySelector("#updatedAt"),
@@ -457,6 +458,21 @@ function render() {
   elements.alertCount.textContent = String(
     availableQuotes.filter((quote) => quote.changePct <= -3).length,
   );
+  renderStockSuggestions();
+}
+
+function renderStockSuggestions() {
+  const stocks = Object.entries(state.market?.stocks || {})
+    .filter(([code]) => !state.codes.includes(code))
+    .sort(([, a], [, b]) => (a.name || "").localeCompare(b.name || "", "zh-CN"));
+  const fragment = document.createDocumentFragment();
+  stocks.forEach(([code, stock]) => {
+    const option = document.createElement("option");
+    option.value = stock.name || code;
+    option.label = code;
+    fragment.append(option);
+  });
+  elements.stockSuggestions.replaceChildren(fragment);
 }
 
 function formatTime(value) {
@@ -518,22 +534,52 @@ function openAddDialog() {
   elements.addForm.reset();
   elements.formError.textContent = "";
   elements.addDialog.showModal();
-  window.setTimeout(() => elements.stockCode.focus(), 30);
+  window.setTimeout(() => elements.stockQuery.focus(), 30);
 }
 
 function closeAddDialog() {
   elements.addDialog.close();
 }
 
+function resolveStockQuery(query) {
+  if (/^\d{6}$/.test(query)) return { code: query };
+
+  const normalizedQuery = query.toLocaleLowerCase("zh-CN").replace(/\s+/g, "");
+  const stocks = Object.entries(state.market?.stocks || {}).map(
+    ([code, stock]) => ({
+      code,
+      name: stock.name || code,
+      normalizedName: (stock.name || "")
+        .toLocaleLowerCase("zh-CN")
+        .replace(/\s+/g, ""),
+    }),
+  );
+  const exactMatch = stocks.find(
+    (stock) => stock.normalizedName === normalizedQuery,
+  );
+  if (exactMatch) return { code: exactMatch.code };
+
+  const partialMatches = stocks.filter((stock) =>
+    stock.normalizedName.includes(normalizedQuery),
+  );
+  if (partialMatches.length === 1) return { code: partialMatches[0].code };
+  if (partialMatches.length > 1) {
+    return { error: `找到 ${partialMatches.length} 只匹配股票，请输入完整名称` };
+  }
+  return { error: "没有找到该股票，请检查名称或代码" };
+}
+
 function addStock(event) {
   event.preventDefault();
-  const code = elements.stockCode.value.trim();
+  const query = elements.stockQuery.value.trim();
   elements.formError.textContent = "";
 
-  if (!/^\d{6}$/.test(code)) {
-    elements.formError.textContent = "请输入 6 位股票代码";
+  const resolved = resolveStockQuery(query);
+  if (resolved.error) {
+    elements.formError.textContent = resolved.error;
     return;
   }
+  const code = resolved.code;
   if (state.codes.includes(code)) {
     elements.formError.textContent = "这只股票已在自选中";
     return;
@@ -608,8 +654,7 @@ elements.stockRows.addEventListener("click", (event) => {
 elements.addDialog.addEventListener("click", (event) => {
   if (event.target === elements.addDialog) closeAddDialog();
 });
-elements.stockCode.addEventListener("input", () => {
-  elements.stockCode.value = elements.stockCode.value.replace(/\D/g, "").slice(0, 6);
+elements.stockQuery.addEventListener("input", () => {
   elements.formError.textContent = "";
 });
 

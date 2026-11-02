@@ -9,8 +9,8 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股回撤观察</title>
-    <link rel="stylesheet" href="./styles.css?v=10" />
-    <script defer src="./app.js?v=10"></script>
+    <link rel="stylesheet" href="./styles.css?v=11" />
+    <script defer src="./app.js?v=11"></script>
   </head>
   <body>
     <header class="app-header">
@@ -161,7 +161,7 @@
         <div class="dialog-heading">
           <div>
             <h2 id="dialogTitle">添加股票</h2>
-            <p>沪深 A 股代码</p>
+            <p>沪深 A 股名称或代码</p>
           </div>
           <button
             id="closeDialogButton"
@@ -173,18 +173,18 @@
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
           </button>
         </div>
-        <label for="stockCode">6 位股票代码</label>
+        <label for="stockQuery">股票名称或 6 位代码</label>
         <input
-          id="stockCode"
-          name="stockCode"
+          id="stockQuery"
+          name="stockQuery"
           type="text"
-          inputmode="numeric"
           autocomplete="off"
-          maxlength="6"
-          pattern="[0-9]{6}"
-          placeholder="例如 601318"
+          maxlength="20"
+          placeholder="例如 平安银行 / 000001"
+          list="stockSuggestions"
           required
         />
+        <datalist id="stockSuggestions"></datalist>
         <p id="formError" class="form-error" role="alert"></p>
         <button id="confirmAddButton" class="primary-button full-width" type="submit">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
