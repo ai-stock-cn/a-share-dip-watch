@@ -92,27 +92,38 @@ const BANK_CODES = [
 ];
 
 const EXTRA_CODES = [
+  "000568",
   "000848",
   "002216",
   "002271",
   "002293",
   "002327",
+  "002557",
   "002572",
   "002582",
   "002818",
+  "002832",
   "002867",
   "600023",
+  "600039",
   "600066",
+  "600132",
   "600177",
+  "600210",
   "600219",
   "600295",
   "600329",
   "600398",
   "600566",
   "600582",
+  "601098",
+  "601225",
   "601668",
   "601919",
+  "601928",
+  "603195",
   "603565",
+  "603833",
 ];
 
 const DEFAULT_CODES = [
@@ -120,11 +131,14 @@ const DEFAULT_CODES = [
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v5",
-  legacyWatchlist: "a-share-dip-watch:watchlist:v4",
-  olderWatchlist: "a-share-dip-watch:watchlist:v3",
-  oldestWatchlist: "a-share-dip-watch:watchlist:v2",
-  market: "a-share-dip-watch:market:v6",
+  watchlist: "a-share-dip-watch:watchlist:v6",
+  legacyWatchlists: [
+    "a-share-dip-watch:watchlist:v5",
+    "a-share-dip-watch:watchlist:v4",
+    "a-share-dip-watch:watchlist:v3",
+    "a-share-dip-watch:watchlist:v2",
+  ],
+  market: "a-share-dip-watch:market:v7",
 };
 
 const FILTER_META = {
@@ -196,13 +210,10 @@ function loadWatchlist() {
   const current = loadJson(STORAGE_KEYS.watchlist, null);
   if (Array.isArray(current)) return current;
 
-  const legacy = loadJson(
-    STORAGE_KEYS.legacyWatchlist,
-    loadJson(
-      STORAGE_KEYS.olderWatchlist,
-      loadJson(STORAGE_KEYS.oldestWatchlist, BASE_CODES),
-    ),
-  );
+  const legacy =
+    STORAGE_KEYS.legacyWatchlists
+      .map((key) => loadJson(key, null))
+      .find((value) => Array.isArray(value)) || BASE_CODES;
   const migrated = [
     ...new Set([
       ...(Array.isArray(legacy) ? legacy : BASE_CODES),
