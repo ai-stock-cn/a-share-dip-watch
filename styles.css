@@ -461,18 +461,33 @@ tbody tr:hover {
 
 th:first-child,
 td:first-child {
-  width: 43%;
+  width: 34%;
 }
 
 th.numeric,
 td.numeric {
-  width: 24%;
   text-align: right;
+}
+
+.history-yield-column,
+.history-yield-cell {
+  width: 22%;
+  text-align: right;
+}
+
+.change-column,
+.change-cell {
+  width: 18%;
+}
+
+.current-yield-column,
+.current-yield-cell {
+  width: 19%;
 }
 
 .action-column,
 .row-action-cell {
-  width: 9%;
+  width: 7%;
   text-align: right;
 }
 
@@ -622,6 +637,10 @@ td.numeric {
 
 .metric-note {
   margin-top: 4px;
+}
+
+.history-yield-note {
+  margin-top: 0;
 }
 
 .current-yield-price,
@@ -1126,32 +1145,43 @@ noscript {
 
   th:first-child,
   td:first-child {
-    width: 37%;
+    width: 32%;
     padding-left: 12px;
   }
 
-  th.numeric,
-  td.numeric {
-    width: 27%;
+  .history-yield-column,
+  .history-yield-cell {
+    width: 25%;
+    padding-right: 4px;
+    padding-left: 4px;
   }
 
-  th:nth-child(3),
-  td:nth-child(3) {
+  .change-column,
+  .change-cell {
+    width: 17%;
+    padding-right: 3px;
+    padding-left: 3px;
+  }
+
+  .current-yield-column,
+  .current-yield-cell {
+    width: 19%;
     padding-right: 3px;
     padding-left: 3px;
   }
 
   .action-column,
   .row-action-cell {
-    width: 9%;
+    width: 7%;
     padding-right: 5px;
   }
 
   .metric {
-    min-width: 70px;
+    width: 100%;
+    min-width: 0;
     height: 34px;
-    padding: 0 7px;
-    font-size: 14px;
+    padding: 0 3px;
+    font-size: 13px;
   }
 
   .yield-value {
@@ -1162,7 +1192,22 @@ noscript {
     font-size: 14px;
   }
 
+  .history-yield-cell .metric-note-peak-price,
+  .history-yield-cell .recent-yield-values small {
+    display: none;
+  }
+
+  .history-yield-cell .recent-yield-item {
+    gap: 3px;
+  }
+
+  .history-yield-cell .recent-yield-values {
+    min-width: 36px;
+  }
+
   .row-action {
+    width: 28px;
+    height: 28px;
     opacity: 1;
   }
 }

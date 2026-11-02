@@ -531,17 +531,19 @@ function rowTemplate(quote) {
           <small>${escapeHtml(activeBollPeriod.shortLabel)}线下轨 ${escapeHtml(formatPrice(activeBollTrack?.lower))}</small>
         </div>
       </td>
-      <td class="numeric">
-        <span class="metric ${declineClass(changeValue)}">${formatPercent(changeValue)}</span>
-      </td>
-      <td class="numeric">
-        <div class="yield-value" title="${escapeHtml(currentYieldTitle)}">${formatPercent(dividendYield)}</div>
-        <div class="current-yield-price">现价 ${escapeHtml(formatPrice(quote.price))}</div>
-        <div class="metric-note">
+      <td class="history-yield-cell">
+        <div class="metric-note history-yield-note">
           <span class="metric-note-peak" title="${escapeHtml(historicalYieldTitle)}">${escapeHtml(historicalYieldText)}</span>
           <span class="metric-note-peak-price">${escapeHtml(historicalPriceText)}</span>
           <span class="recent-yield-list" aria-label="最近三年历史股息率">${recentYieldRows}</span>
         </div>
+      </td>
+      <td class="numeric change-cell">
+        <span class="metric ${declineClass(changeValue)}">${formatPercent(changeValue)}</span>
+      </td>
+      <td class="numeric current-yield-cell">
+        <div class="yield-value" title="${escapeHtml(currentYieldTitle)}">${formatPercent(dividendYield)}</div>
+        <div class="current-yield-price">现价 ${escapeHtml(formatPrice(quote.price))}</div>
       </td>
       <td class="row-action-cell">
         <button class="row-action" type="button" data-remove="${escapeHtml(quote.code)}" title="移除 ${escapeHtml(quote.name)}" aria-label="移除 ${escapeHtml(quote.name)}">${TRASH_ICON}</button>
@@ -659,18 +661,18 @@ function render() {
 
   if (!state.codes.length) {
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="4">暂无自选股</td></tr>`;
+      <tr class="empty-row"><td colspan="5">暂无自选股</td></tr>`;
   } else if (!availableQuotes.length && state.loading) {
     elements.stockRows.innerHTML = `
       <tr class="loading-row">
-        <td colspan="4"><span class="spinner" aria-hidden="true"></span>正在读取行情</td>
+        <td colspan="5"><span class="spinner" aria-hidden="true"></span>正在读取行情</td>
       </tr>`;
   } else if (!availableQuotes.length) {
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="4">行情暂不可用</td></tr>`;
+      <tr class="empty-row"><td colspan="5">行情暂不可用</td></tr>`;
   } else if (!filteredQuotes.length) {
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="4">${state.searchQuery.trim() ? "没有找到匹配的股票" : "没有符合筛选条件的股票"}</td></tr>`;
+      <tr class="empty-row"><td colspan="5">${state.searchQuery.trim() ? "没有找到匹配的股票" : "没有符合筛选条件的股票"}</td></tr>`;
   } else {
     elements.stockRows.innerHTML = pageQuotes.map(rowTemplate).join("");
   }
