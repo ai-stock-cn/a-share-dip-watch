@@ -552,6 +552,40 @@ td.numeric {
   opacity: 0.65;
 }
 
+.boll-lower-distance {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 4px;
+  color: var(--ink-muted);
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.boll-lower-distance span {
+  font-weight: 700;
+}
+
+.boll-lower-distance small {
+  color: var(--ink-muted);
+  font-size: 9px;
+  opacity: 0.78;
+}
+
+.boll-lower-distance.near {
+  color: var(--moderate);
+}
+
+.boll-lower-distance.below {
+  color: var(--severe);
+}
+
+.boll-lower-distance.unknown {
+  opacity: 0.65;
+}
+
 .metric-note {
   margin-top: 4px;
 }

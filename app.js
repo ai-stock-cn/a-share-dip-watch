@@ -355,6 +355,39 @@ function formatPrice(value) {
   return `¥${value.toFixed(2)}`;
 }
 
+function getBollLowerRailSignal(price, lowerRail) {
+  if (!Number.isFinite(price) || !Number.isFinite(lowerRail) || lowerRail <= 0) {
+    return {
+      status: "unknown",
+      label: "距下轨 --",
+      distancePct: null,
+    };
+  }
+
+  const distancePct = ((price - lowerRail) / lowerRail) * 100;
+  if (distancePct < 0) {
+    return {
+      status: "below",
+      label: `已跌破下轨 ${distancePct.toFixed(2)}%`,
+      distancePct,
+    };
+  }
+
+  if (distancePct <= 2) {
+    return {
+      status: "near",
+      label: `接近下轨 +${distancePct.toFixed(2)}%`,
+      distancePct,
+    };
+  }
+
+  return {
+    status: "normal",
+    label: `距下轨 +${distancePct.toFixed(2)}%`,
+    distancePct,
+  };
+}
+
 function declineClass(changePct) {
   if (!Number.isFinite(changePct)) return "flat";
   if (changePct <= -5) return "severe";
@@ -429,6 +462,17 @@ function rowTemplate(quote) {
       return `<span class="boll-track ${bandMeta?.className || "unknown"}" title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
     })
     .join("");
+  const dailyBollTrack = quote.bollTracks.day;
+  const dailyLowerRailSignal = getBollLowerRailSignal(
+    quote.price,
+    dailyBollTrack?.lower,
+  );
+  const dailyLowerRailTitle =
+    Number.isFinite(dailyLowerRailSignal.distancePct) &&
+    Number.isFinite(dailyBollTrack?.lower) &&
+    Number.isFinite(quote.price)
+      ? `日线 BOLL 下轨距离：(现价 ${formatPrice(quote.price)} - 下轨 ${formatPrice(dailyBollTrack.lower)}) ÷ 下轨 ${formatPrice(dailyBollTrack.lower)} = ${dailyLowerRailSignal.distancePct.toFixed(2)}%`
+      : "日线 BOLL 下轨距离暂无数据";
   const historicalYieldText = Number.isFinite(
     quote.historicalMaxDividendYield10y,
   )
@@ -477,6 +521,10 @@ function rowTemplate(quote) {
           <span class="price-track ${track?.className || "unknown"}" title="${escapeHtml(trackTitle)}">${escapeHtml(trackText)}</span>
         </div>
         <div class="boll-track-list" aria-label="BOLL 日周月轨道">${bollTrackRows}</div>
+        <div class="boll-lower-distance ${dailyLowerRailSignal.status}" title="${escapeHtml(dailyLowerRailTitle)}" aria-label="日线 BOLL ${escapeHtml(dailyLowerRailSignal.label)}">
+          <span>${escapeHtml(dailyLowerRailSignal.label)}</span>
+          <small>下轨 ${escapeHtml(formatPrice(dailyBollTrack?.lower))}</small>
+        </div>
       </td>
       <td class="numeric">
         <span class="metric ${declineClass(changeValue)}">${formatPercent(changeValue)}</span>
