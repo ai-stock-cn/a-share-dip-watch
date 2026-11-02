@@ -9,7 +9,8 @@ import re
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -20,15 +21,21 @@ MARKET_PATH = DATA_DIR / "market.json"
 DIVIDEND_PATH = DATA_DIR / "dividends.json"
 CODES_PATH = DATA_DIR / "codes.json"
 EXPECTED_UNIVERSE_SIZE = 43
+HISTORY_LIMIT = 100
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 USER_AGENT = "Mozilla/5.0 (compatible; AShareDipWatch/1.0; +https://github.com/)"
 
 
-def request_json(url: str, params: dict[str, object], retries: int = 4) -> dict:
+def request_json(
+    url: str,
+    params: dict[str, object],
+    retries: int = 4,
+    referer: str = "https://quote.eastmoney.com/",
+) -> dict:
     query = urllib.parse.urlencode(params)
     request = urllib.request.Request(
         f"{url}?{query}",
-        headers={"User-Agent": USER_AGENT, "Referer": "https://quote.eastmoney.com/"},
+        headers={"User-Agent": USER_AGENT, "Referer": referer},
     )
     for attempt in range(retries):
         try:
@@ -139,6 +146,148 @@ def fetch_quotes(
             f"quote response is incomplete: {len(quoted_codes)} of {len(codes)} rows"
         )
     return stocks, max(quote_times, default=None)
+
+
+def fetch_three_month_metrics(
+    stocks: dict[str, dict], quote_timestamp: datetime | None
+) -> dict[str, dict[str, float | str | None]]:
+    quote_day = (
+        quote_timestamp.date()
+        if quote_timestamp
+        else datetime.now(ZoneInfo("Asia/Shanghai")).date()
+    )
+    history_inputs = load_history_inputs_from_cache(sorted(stocks), quote_day.isoformat())
+    missing_codes = [code for code in sorted(stocks) if code not in history_inputs]
+
+    if missing_codes:
+        completed = 0
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            futures = {
+                executor.submit(fetch_history_input, code, quote_day): code
+                for code in missing_codes
+            }
+            for future in as_completed(futures):
+                code = futures[future]
+                completed += 1
+                try:
+                    history_inputs[code] = future.result()
+                except Exception as error:
+                    print(f"History warning for {code}: {error}", flush=True)
+                if completed % 10 == 0 or completed == len(missing_codes):
+                    print(
+                        f"History progress: {completed} requested, "
+                        f"{len(history_inputs)} available",
+                        flush=True,
+                    )
+
+    minimum_histories = (len(stocks) * 90 + 99) // 100
+    if len(history_inputs) < minimum_histories:
+        raise RuntimeError(
+            f"history response is incomplete: {len(history_inputs)} of "
+            f"{len(stocks)} rows"
+        )
+
+    metrics: dict[str, dict[str, float | str | None]] = {}
+    for code, history in history_inputs.items():
+        baseline_close = number_or_none(history.get("threeMonthBaseClose"))
+        if baseline_close is None:
+            continue
+        current_price = number_or_none(stocks[code].get("price"))
+        three_month_change = (
+            (current_price / baseline_close - 1) * 100
+            if current_price is not None and baseline_close > 0
+            else None
+        )
+        metrics[code] = {
+            "threeMonthChangePct": (
+                round(three_month_change, 4)
+                if three_month_change is not None
+                else None
+            ),
+            "maxDailyDecline3m": history["maxDailyDecline3m"],
+            "threeMonthBaseClose": baseline_close,
+            "historyAsOf": history["historyAsOf"],
+        }
+    return metrics
+
+
+def load_history_inputs_from_cache(
+    codes: list[str], quote_day: str
+) -> dict[str, dict[str, float | str | None]]:
+    if not MARKET_PATH.exists():
+        return {}
+    try:
+        payload = json.loads(MARKET_PATH.read_text(encoding="utf-8"))
+        cached_stocks = payload.get("stocks") or {}
+        cached: dict[str, dict[str, float | str | None]] = {}
+        for code in codes:
+            stock = cached_stocks.get(code) or {}
+            baseline = number_or_none(stock.get("threeMonthBaseClose"))
+            if stock.get("historyAsOf") != quote_day or baseline is None:
+                continue
+            cached[code] = {
+                "threeMonthBaseClose": baseline,
+                "maxDailyDecline3m": number_or_none(
+                    stock.get("maxDailyDecline3m")
+                ),
+                "historyAsOf": quote_day,
+            }
+        if cached:
+            print(f"History cache: {len(cached)} of {len(codes)} rows", flush=True)
+        return cached
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return {}
+
+
+def fetch_history_input(
+    code: str, quote_day
+) -> dict[str, float | str | None]:
+    symbol = f"sh{code}" if code.startswith("6") else f"sz{code}"
+    payload = request_json(
+        "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
+        {"param": f"{symbol},day,,,{HISTORY_LIMIT},qfq"},
+        referer="https://gu.qq.com/",
+    )
+    stock_payload = (payload.get("data") or {}).get(symbol) or {}
+    lines = stock_payload.get("qfqday") or stock_payload.get("day") or []
+    closes: list[tuple[datetime, float]] = []
+    for line in lines:
+        if not isinstance(line, list) or len(line) < 3:
+            continue
+        try:
+            trade_date = datetime.strptime(str(line[0]), "%Y-%m-%d")
+        except ValueError:
+            continue
+        close = number_or_none(line[2])
+        if close is not None:
+            closes.append((trade_date, close))
+
+    closes.sort(key=lambda row: row[0])
+    if len(closes) < 3:
+        raise RuntimeError("insufficient K-line rows")
+
+    latest_date = closes[-1][0]
+    cutoff = latest_date - timedelta(days=92)
+    period_rows = [row for row in closes if row[0] >= cutoff]
+    if len(period_rows) < 2:
+        raise RuntimeError("insufficient three-month rows")
+
+    daily_changes = [
+        (closes[index][0], (closes[index][1] / closes[index - 1][1] - 1) * 100)
+        for index in range(1, len(closes))
+    ]
+    prior_declines = [
+        change
+        for trade_date, change in daily_changes
+        if trade_date.date() < quote_day and trade_date >= cutoff and change < 0
+    ]
+    return {
+        "threeMonthBaseClose": period_rows[0][1],
+        "maxDailyDecline3m": (
+            round(min(prior_declines), 4) if prior_declines else None
+        ),
+        "historyAsOf": quote_day.isoformat(),
+    }
 
 
 def load_fresh_dividend_cache(
@@ -266,11 +415,18 @@ def main() -> None:
     universe = load_universe()
     codes = [item["code"] for item in universe]
     stocks, quote_timestamp = fetch_quotes(universe)
+    histories = fetch_three_month_metrics(stocks, quote_timestamp)
     dividends = fetch_dividends(fiscal_year, codes)
 
     for code, stock in stocks.items():
         stock["dividendPerShare"] = round(dividends.get(code, 0.0), 8)
         stock["dividendYear"] = fiscal_year
+        stock.update(
+            histories.get(
+                code,
+                {"threeMonthChangePct": None, "maxDailyDecline3m": None},
+            )
+        )
 
     quote_time = quote_timestamp.isoformat() if quote_timestamp else None
     write_json(

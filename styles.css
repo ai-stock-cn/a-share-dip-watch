@@ -38,7 +38,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
   letter-spacing: 0;
 }
@@ -169,7 +170,8 @@ button:active {
 }
 
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible {
   outline: 3px solid rgba(214, 173, 85, 0.42);
   outline-offset: 2px;
 }
@@ -274,6 +276,62 @@ button:disabled {
 
 .legend-dot.severe {
   background: var(--severe);
+}
+
+.filter-bar,
+.filter-group,
+.page-settings,
+.control-field,
+.pagination,
+.pagination-actions {
+  display: flex;
+  align-items: center;
+}
+
+.filter-bar {
+  min-height: 66px;
+  margin-bottom: 12px;
+  padding: 10px 0;
+  justify-content: space-between;
+  gap: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.filter-group,
+.page-settings {
+  gap: 12px;
+}
+
+.control-field {
+  margin: 0;
+  gap: 8px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.control-field select {
+  height: 38px;
+  min-width: 142px;
+  padding: 0 30px 0 11px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.control-field.compact select {
+  min-width: 92px;
+}
+
+.result-count {
+  min-width: 54px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 650;
+  text-align: right;
 }
 
 .table-shell {
@@ -410,6 +468,29 @@ tr:hover .row-action,
 .row-action:hover {
   color: var(--severe);
   background: var(--severe-soft);
+}
+
+.pagination {
+  min-height: 58px;
+  justify-content: flex-end;
+  gap: 14px;
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.pagination-actions {
+  gap: 6px;
+}
+
+.pagination .icon-button {
+  width: 36px;
+  min-height: 36px;
+  border-color: var(--line);
+}
+
+.pagination button:disabled {
+  cursor: default;
+  opacity: 0.35;
 }
 
 .loading-row td,
@@ -635,6 +716,41 @@ noscript {
 
   .legend {
     gap: 11px;
+  }
+
+  .filter-bar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .filter-group,
+  .page-settings {
+    width: 100%;
+  }
+
+  .filter-group .control-field {
+    min-width: 0;
+    flex: 1 1 0;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .control-field select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .page-settings {
+    justify-content: space-between;
+  }
+
+  .page-settings .control-field {
+    flex-direction: row;
+  }
+
+  .pagination {
+    justify-content: space-between;
   }
 
   th,

@@ -48,7 +48,13 @@ const DEFAULT_CODES = [
 
 const STORAGE_KEYS = {
   watchlist: "a-share-dip-watch:watchlist:v2",
-  market: "a-share-dip-watch:market:v2",
+  market: "a-share-dip-watch:market:v3",
+};
+
+const FILTER_META = {
+  daily: { title: "今日表现", header: "当日跌幅" },
+  threeMonth: { title: "近3月表现", header: "近3月跌幅" },
+  largestDaily: { title: "近3月异常", header: "当日跌幅" },
 };
 
 const TRASH_ICON = `
@@ -64,22 +70,35 @@ const elements = {
   addForm: document.querySelector("#addForm"),
   alertCount: document.querySelector("#alertCount"),
   closeDialogButton: document.querySelector("#closeDialogButton"),
+  changeHeader: document.querySelector("#changeHeader"),
   confirmAddButton: document.querySelector("#confirmAddButton"),
   declineCount: document.querySelector("#declineCount"),
   formError: document.querySelector("#formError"),
   marketStatus: document.querySelector("#marketStatus"),
+  nextPageButton: document.querySelector("#nextPageButton"),
+  pageSizeSelect: document.querySelector("#pageSizeSelect"),
+  pageStatus: document.querySelector("#pageStatus"),
+  periodFilter: document.querySelector("#periodFilter"),
+  previousPageButton: document.querySelector("#previousPageButton"),
   refreshButton: document.querySelector("#refreshButton"),
+  resultCount: document.querySelector("#resultCount"),
   stockCode: document.querySelector("#stockCode"),
   stockCount: document.querySelector("#stockCount"),
   stockRows: document.querySelector("#stockRows"),
+  thresholdFilter: document.querySelector("#thresholdFilter"),
   toast: document.querySelector("#toast"),
   updatedAt: document.querySelector("#updatedAt"),
+  watchlistTitle: document.querySelector("#watchlistTitle"),
 };
 
 const state = {
   codes: loadJson(STORAGE_KEYS.watchlist, DEFAULT_CODES),
   market: loadJson(STORAGE_KEYS.market, null),
   loading: false,
+  period: "daily",
+  threshold: 0,
+  page: 1,
+  pageSize: 10,
 };
 
 function loadJson(key, fallback) {
@@ -93,6 +112,12 @@ function loadJson(key, fallback) {
 
 function saveJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function numberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 async function fetchMarket() {
@@ -113,10 +138,12 @@ function quoteFor(code) {
   return {
     code,
     name: stock.name || code,
-    price: Number(stock.price),
-    changePct: Number(stock.changePct),
-    dividendPerShare: Number(stock.dividendPerShare),
-    dividendYear: Number(stock.dividendYear),
+    price: numberOrNull(stock.price),
+    changePct: numberOrNull(stock.changePct),
+    threeMonthChangePct: numberOrNull(stock.threeMonthChangePct),
+    maxDailyDecline3m: numberOrNull(stock.maxDailyDecline3m),
+    dividendPerShare: numberOrNull(stock.dividendPerShare),
+    dividendYear: numberOrNull(stock.dividendYear),
   };
 }
 
@@ -143,7 +170,13 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function metricFor(quote) {
+  if (state.period === "threeMonth") return quote.threeMonthChangePct;
+  return quote.changePct;
+}
+
 function rowTemplate(quote) {
+  const changeValue = metricFor(quote);
   const dividendYield =
     Number.isFinite(quote.dividendPerShare) && quote.price > 0
       ? (quote.dividendPerShare / quote.price) * 100
@@ -158,7 +191,7 @@ function rowTemplate(quote) {
         <div class="stock-code">${escapeHtml(quote.code)}</div>
       </td>
       <td class="numeric">
-        <span class="metric ${declineClass(quote.changePct)}">${formatPercent(quote.changePct)}</span>
+        <span class="metric ${declineClass(changeValue)}">${formatPercent(changeValue)}</span>
       </td>
       <td class="numeric">
         <div class="yield-value">${formatPercent(dividendYield)}</div>
@@ -172,39 +205,67 @@ function rowTemplate(quote) {
 
 function sortQuotes(quotes) {
   return [...quotes].sort((a, b) => {
-    const aValue = Number.isFinite(a.changePct) ? a.changePct : Infinity;
-    const bValue = Number.isFinite(b.changePct) ? b.changePct : Infinity;
+    const aMetric = metricFor(a);
+    const bMetric = metricFor(b);
+    const aValue = Number.isFinite(aMetric) ? aMetric : Infinity;
+    const bValue = Number.isFinite(bMetric) ? bMetric : Infinity;
     return aValue - bValue || a.code.localeCompare(b.code);
   });
 }
 
-function visibleQuotes() {
-  return sortQuotes(state.codes.map(quoteFor).filter(Boolean));
+function matchesFilters(quote) {
+  const metric = metricFor(quote);
+  if (!Number.isFinite(metric)) return false;
+  if (state.threshold > 0 && metric > -state.threshold) return false;
+  if (state.period === "largestDaily") {
+    return (
+      quote.changePct < 0 &&
+      Number.isFinite(quote.maxDailyDecline3m) &&
+      quote.changePct < quote.maxDailyDecline3m
+    );
+  }
+  return true;
 }
 
 function render() {
-  const quotes = visibleQuotes();
+  const availableQuotes = state.codes.map(quoteFor).filter(Boolean);
+  const filteredQuotes = sortQuotes(availableQuotes.filter(matchesFilters));
+  const totalPages = Math.max(1, Math.ceil(filteredQuotes.length / state.pageSize));
+  state.page = Math.min(state.page, totalPages);
+  const start = (state.page - 1) * state.pageSize;
+  const pageQuotes = filteredQuotes.slice(start, start + state.pageSize);
+
   if (!state.codes.length) {
     elements.stockRows.innerHTML = `
       <tr class="empty-row"><td colspan="4">暂无自选股</td></tr>`;
-  } else if (!quotes.length && state.loading) {
+  } else if (!availableQuotes.length && state.loading) {
     elements.stockRows.innerHTML = `
       <tr class="loading-row">
         <td colspan="4"><span class="spinner" aria-hidden="true"></span>正在读取行情</td>
       </tr>`;
-  } else if (!quotes.length) {
+  } else if (!availableQuotes.length) {
     elements.stockRows.innerHTML = `
       <tr class="empty-row"><td colspan="4">行情暂不可用</td></tr>`;
+  } else if (!filteredQuotes.length) {
+    elements.stockRows.innerHTML = `
+      <tr class="empty-row"><td colspan="4">没有符合筛选条件的股票</td></tr>`;
   } else {
-    elements.stockRows.innerHTML = quotes.map(rowTemplate).join("");
+    elements.stockRows.innerHTML = pageQuotes.map(rowTemplate).join("");
   }
 
+  const filterMeta = FILTER_META[state.period];
+  elements.watchlistTitle.textContent = filterMeta.title;
+  elements.changeHeader.textContent = filterMeta.header;
+  elements.resultCount.textContent = `${filteredQuotes.length} 只`;
+  elements.pageStatus.textContent = `第 ${state.page} / ${totalPages} 页`;
+  elements.previousPageButton.disabled = state.page <= 1;
+  elements.nextPageButton.disabled = state.page >= totalPages;
   elements.stockCount.textContent = String(state.codes.length);
   elements.declineCount.textContent = String(
-    quotes.filter((quote) => quote.changePct < 0).length,
+    availableQuotes.filter((quote) => quote.changePct < 0).length,
   );
   elements.alertCount.textContent = String(
-    quotes.filter((quote) => quote.changePct <= -3).length,
+    availableQuotes.filter((quote) => quote.changePct <= -3).length,
   );
 }
 
@@ -234,7 +295,7 @@ async function refresh() {
     elements.updatedAt.textContent = formatTime(
       state.market.quoteTime || state.market.generatedAt,
     );
-    elements.marketStatus.textContent = "行情已更新 · 按跌幅排序";
+    elements.marketStatus.textContent = "行情已更新 · 可按当日或近3月筛选";
   } catch (error) {
     if (state.market?.stocks) {
       elements.updatedAt.textContent = formatTime(
@@ -294,6 +355,7 @@ function addStock(event) {
   }
 
   state.codes.push(code);
+  state.page = 1;
   saveJson(STORAGE_KEYS.watchlist, state.codes);
   closeAddDialog();
   render();
@@ -315,6 +377,30 @@ elements.addButton.addEventListener("click", openAddDialog);
 elements.closeDialogButton.addEventListener("click", closeAddDialog);
 elements.addForm.addEventListener("submit", addStock);
 elements.refreshButton.addEventListener("click", refresh);
+elements.periodFilter.addEventListener("change", (event) => {
+  if (!FILTER_META[event.target.value]) return;
+  state.period = event.target.value;
+  state.page = 1;
+  render();
+});
+elements.thresholdFilter.addEventListener("change", (event) => {
+  state.threshold = Number(event.target.value) || 0;
+  state.page = 1;
+  render();
+});
+elements.pageSizeSelect.addEventListener("change", (event) => {
+  state.pageSize = Number(event.target.value) || 10;
+  state.page = 1;
+  render();
+});
+elements.previousPageButton.addEventListener("click", () => {
+  state.page = Math.max(1, state.page - 1);
+  render();
+});
+elements.nextPageButton.addEventListener("click", () => {
+  state.page += 1;
+  render();
+});
 elements.stockRows.addEventListener("click", (event) => {
   const button = event.target.closest("[data-remove]");
   if (button) removeStock(button.dataset.remove);
