@@ -151,7 +151,7 @@ const STORAGE_KEYS = {
     "a-share-dip-watch:watchlist:v3",
     "a-share-dip-watch:watchlist:v2",
   ],
-  market: "a-share-dip-watch:market:v9",
+  market: "a-share-dip-watch:market:v10",
 };
 
 const FILTER_META = {
@@ -272,6 +272,8 @@ function quoteFor(code) {
   return {
     code,
     name: stock.name || code,
+    industry: stock.industry || "行业待同步",
+    industryDetail: stock.industryDetail || stock.industry || "行业待同步",
     price: numberOrNull(stock.price),
     changePct: numberOrNull(stock.changePct),
     threeMonthChangePct: numberOrNull(stock.threeMonthChangePct),
@@ -384,6 +386,7 @@ function rowTemplate(quote) {
         </div>
         <div class="stock-meta">
           <span class="stock-code">${escapeHtml(quote.code)}</span>
+          <span class="industry-tag" title="同花顺申万行业：${escapeHtml(quote.industryDetail)}">${escapeHtml(quote.industry)}</span>
           <span class="price-track ${track?.className || "unknown"}" title="${escapeHtml(trackTitle)}">${escapeHtml(trackText)}</span>
         </div>
       </td>

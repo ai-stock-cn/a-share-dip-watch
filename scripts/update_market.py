@@ -75,12 +75,21 @@ def load_universe() -> list[dict[str, str]]:
     for item in payload:
         code = str(item.get("code", ""))
         name = str(item.get("name", "")).strip()
-        if not re.fullmatch(r"[0236]\d{5}", code) or not name:
+        industry = str(item.get("industry", "")).strip()
+        industry_detail = str(item.get("industryDetail", "")).strip()
+        if (
+            not re.fullmatch(r"[0236]\d{5}", code)
+            or not name
+            or not industry
+            or not industry_detail
+        ):
             raise RuntimeError(f"invalid stock entry: {item!r}")
         universe[code] = {
             "code": code,
             "name": name,
             "category": str(item.get("category", "")),
+            "industry": industry,
+            "industryDetail": industry_detail,
         }
     if len(universe) != EXPECTED_UNIVERSE_SIZE:
         raise RuntimeError(
@@ -98,6 +107,8 @@ def fetch_quotes(
     stocks: dict[str, dict] = {
         item["code"]: {
             "name": item["name"],
+            "industry": item["industry"],
+            "industryDetail": item["industryDetail"] or item["industry"],
             "price": None,
             "changePct": None,
         }
@@ -131,6 +142,8 @@ def fetch_quotes(
                 pass
             stocks[code] = {
                 "name": fields[1] or stocks[code]["name"],
+                "industry": stocks[code]["industry"],
+                "industryDetail": stocks[code]["industryDetail"],
                 "price": price,
                 "changePct": change_pct,
             }

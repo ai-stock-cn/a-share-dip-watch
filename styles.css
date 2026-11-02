@@ -471,16 +471,27 @@ td.numeric {
   margin-top: 4px;
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 3px 7px;
 }
 
 .stock-code,
+.industry-tag,
 .price-track,
 .metric-note {
   color: var(--ink-muted);
   font-size: 11px;
   line-height: 1.25;
+}
+
+.industry-tag {
+  padding: 1px 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--neutral-soft);
+  color: var(--ink-muted);
+  white-space: nowrap;
 }
 
 .price-track {
