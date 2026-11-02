@@ -92,16 +92,25 @@ const BANK_CODES = [
 ];
 
 const EXTRA_CODES = [
+  "000848",
+  "002216",
   "002271",
   "002293",
+  "002327",
+  "002572",
+  "002582",
   "002818",
   "002867",
   "600023",
   "600066",
+  "600177",
   "600219",
+  "600295",
   "600329",
   "600398",
   "600566",
+  "600582",
+  "601668",
   "601919",
   "603565",
 ];
@@ -111,10 +120,11 @@ const DEFAULT_CODES = [
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v4",
-  legacyWatchlist: "a-share-dip-watch:watchlist:v3",
-  olderWatchlist: "a-share-dip-watch:watchlist:v2",
-  market: "a-share-dip-watch:market:v5",
+  watchlist: "a-share-dip-watch:watchlist:v5",
+  legacyWatchlist: "a-share-dip-watch:watchlist:v4",
+  olderWatchlist: "a-share-dip-watch:watchlist:v3",
+  oldestWatchlist: "a-share-dip-watch:watchlist:v2",
+  market: "a-share-dip-watch:market:v6",
 };
 
 const FILTER_META = {
@@ -188,7 +198,10 @@ function loadWatchlist() {
 
   const legacy = loadJson(
     STORAGE_KEYS.legacyWatchlist,
-    loadJson(STORAGE_KEYS.olderWatchlist, BASE_CODES),
+    loadJson(
+      STORAGE_KEYS.olderWatchlist,
+      loadJson(STORAGE_KEYS.oldestWatchlist, BASE_CODES),
+    ),
   );
   const migrated = [
     ...new Set([
