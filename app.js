@@ -554,8 +554,8 @@ function rowTemplate(quote) {
 function sortQuotes(quotes) {
   return [...quotes].sort((a, b) => {
     if (
-      state.sortOrder === "bollNearest" ||
-      state.sortOrder === "bollFarthest"
+      state.sortOrder === "bollAscending" ||
+      state.sortOrder === "bollDescending"
     ) {
       const aDistance = getBollLowerRailSignal(
         a.price,
@@ -572,10 +572,9 @@ function sortQuotes(quotes) {
         if (bValid) return 1;
         return a.code.localeCompare(b.code);
       }
-      const direction = state.sortOrder === "bollNearest" ? 1 : -1;
+      const direction = state.sortOrder === "bollAscending" ? 1 : -1;
       return (
-        (Math.abs(aDistance) - Math.abs(bDistance)) * direction ||
-        aDistance - bDistance ||
+        (aDistance - bDistance) * direction ||
         a.code.localeCompare(b.code)
       );
     }
@@ -705,7 +704,9 @@ function render() {
   } else {
     const periodLabel = BOLL_PERIOD_META[state.bollPeriod].label;
     const distanceSortLabel =
-      state.sortOrder === "bollNearest" ? "距下轨最近" : "距下轨最远";
+      state.sortOrder === "bollAscending"
+        ? "下轨距离升序（负值在前）"
+        : "下轨距离降序（正值在前）";
     elements.changeHeader.setAttribute("aria-sort", "none");
     elements.changeSortIcon.textContent = "↕";
     elements.changeSortButton.title = `当前按${periodLabel} BOLL ${distanceSortLabel}排序，点击改为跌幅优先`;
@@ -1021,8 +1022,8 @@ elements.sortOrder.addEventListener("change", (event) => {
   state.sortOrder = [
     "decline",
     "rise",
-    "bollNearest",
-    "bollFarthest",
+    "bollAscending",
+    "bollDescending",
   ].includes(event.target.value)
     ? event.target.value
     : "decline";
