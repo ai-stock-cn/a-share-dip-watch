@@ -317,6 +317,11 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function stockQuoteUrl(code) {
+  const exchange = /^[569]/.test(code) ? "sh" : "sz";
+  return `https://quote.eastmoney.com/${exchange}${code}.html`;
+}
+
 function metricFor(quote) {
   if (state.period === "threeMonth") return quote.threeMonthChangePct;
   return quote.changePct;
@@ -357,10 +362,16 @@ function rowTemplate(quote) {
     Number.isFinite(quote.historicalMaxDividendYear)
       ? `近10年最高静态股息率：${quote.historicalMaxDividendYear} 年度分红 / ${quote.historicalMaxDividendYear + 1} 年最低周价`
       : "暂无近10年历史股息率";
+  const quoteUrl = stockQuoteUrl(quote.code);
   return `
     <tr data-code="${escapeHtml(quote.code)}">
       <td>
-        <div class="stock-name" title="${escapeHtml(quote.name)}">${escapeHtml(quote.name)}</div>
+        <div class="stock-name">
+          <a class="stock-name-link" href="${escapeHtml(quoteUrl)}" target="_blank" rel="noopener noreferrer" title="在东方财富查看 ${escapeHtml(quote.name)} K线" aria-label="在东方财富查看 ${escapeHtml(quote.name)} K线">
+            <span class="stock-link-label">${escapeHtml(quote.name)}</span>
+            <span class="external-link-mark" aria-hidden="true">↗</span>
+          </a>
+        </div>
         <div class="stock-meta">
           <span class="stock-code">${escapeHtml(quote.code)}</span>
           <span class="price-track ${track?.className || "unknown"}" title="${escapeHtml(trackTitle)}">${escapeHtml(trackText)}</span>

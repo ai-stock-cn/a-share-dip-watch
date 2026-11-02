@@ -432,6 +432,41 @@ td.numeric {
   white-space: nowrap;
 }
 
+.stock-name-link {
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.stock-name-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.stock-name-link:focus-visible {
+  outline: 3px solid rgba(214, 173, 85, 0.42);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.stock-link-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.external-link-mark {
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+}
+
 .stock-meta {
   margin-top: 4px;
   display: flex;
