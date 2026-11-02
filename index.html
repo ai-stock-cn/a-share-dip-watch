@@ -9,8 +9,8 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股回撤观察</title>
-    <link rel="stylesheet" href="./styles.css?v=14" />
-    <script defer src="./app.js?v=14"></script>
+    <link rel="stylesheet" href="./styles.css?v=15" />
+    <script defer src="./app.js?v=15"></script>
   </head>
   <body>
     <header class="app-header">
@@ -181,10 +181,18 @@
           autocomplete="off"
           maxlength="20"
           placeholder="例如 平安银行 / 000001"
-          list="stockSuggestions"
+          aria-controls="stockSuggestionPanel"
+          aria-expanded="false"
           required
         />
-        <datalist id="stockSuggestions"></datalist>
+        <div
+          id="stockSuggestionPanel"
+          class="stock-suggestion-panel"
+          role="listbox"
+          aria-label="匹配股票"
+          aria-live="polite"
+          hidden
+        ></div>
         <p id="formError" class="form-error" role="alert"></p>
         <button id="confirmAddButton" class="primary-button full-width" type="submit">
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>

@@ -695,6 +695,88 @@ input::placeholder {
   color: #9ba39e;
 }
 
+.stock-suggestion-panel {
+  max-height: 238px;
+  margin-top: 6px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+}
+
+.stock-suggestion-panel[hidden] {
+  display: none;
+}
+
+.stock-suggestion-summary {
+  min-height: 34px;
+  padding: 8px 11px;
+  display: flex;
+  align-items: center;
+  color: var(--ink-muted);
+  background: #f8f9f8;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.stock-suggestion-option {
+  width: 100%;
+  min-height: 46px;
+  padding: 7px 11px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.stock-suggestion-option:last-child {
+  border-bottom: 0;
+}
+
+.stock-suggestion-option:hover:not(:disabled),
+.stock-suggestion-option:focus-visible {
+  background: var(--moderate-soft);
+}
+
+.stock-suggestion-option:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.stock-suggestion-identity {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.stock-suggestion-identity strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-suggestion-identity span,
+.stock-suggestion-status {
+  color: var(--ink-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.stock-suggestion-status {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
 .form-error {
   min-height: 20px;
   margin: 7px 0 8px;

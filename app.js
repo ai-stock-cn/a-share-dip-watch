@@ -198,7 +198,7 @@ const elements = {
   stockCount: document.querySelector("#stockCount"),
   stockQuery: document.querySelector("#stockQuery"),
   stockRows: document.querySelector("#stockRows"),
-  stockSuggestions: document.querySelector("#stockSuggestions"),
+  stockSuggestionPanel: document.querySelector("#stockSuggestionPanel"),
   thresholdFilter: document.querySelector("#thresholdFilter"),
   toast: document.querySelector("#toast"),
   updatedAt: document.querySelector("#updatedAt"),
@@ -491,18 +491,101 @@ function render() {
   renderStockSuggestions();
 }
 
-function renderStockSuggestions() {
-  const stocks = Object.entries(state.market?.stocks || {})
-    .filter(([code]) => !state.codes.includes(code))
-    .sort(([, a], [, b]) => (a.name || "").localeCompare(b.name || "", "zh-CN"));
+function normalizeStockSearch(value) {
+  return String(value || "")
+    .toLocaleLowerCase("zh-CN")
+    .replace(/\s+/g, "");
+}
+
+function fuzzyMatchScore(candidate, query) {
+  if (!candidate || !query) return Number.POSITIVE_INFINITY;
+  if (candidate === query) return 0;
+  if (candidate.startsWith(query)) return 1;
+  if (candidate.includes(query)) return 2;
+
+  let queryIndex = 0;
+  for (const character of candidate) {
+    if (character === query[queryIndex]) queryIndex += 1;
+    if (queryIndex === query.length) return 3;
+  }
+  return Number.POSITIVE_INFINITY;
+}
+
+function findMatchingStocks(query) {
+  const normalizedQuery = normalizeStockSearch(query);
+  if (!normalizedQuery) return [];
+
+  return Object.entries(state.market?.stocks || {})
+    .map(([code, stock]) => {
+      const name = stock.name || code;
+      const score = Math.min(
+        fuzzyMatchScore(normalizeStockSearch(name), normalizedQuery),
+        fuzzyMatchScore(code, normalizedQuery),
+      );
+      return { code, name, score };
+    })
+    .filter((stock) => Number.isFinite(stock.score))
+    .sort(
+      (a, b) =>
+        a.score - b.score ||
+        a.name.localeCompare(b.name, "zh-CN") ||
+        a.code.localeCompare(b.code),
+    );
+}
+
+function hideStockSuggestions() {
+  elements.stockSuggestionPanel.hidden = true;
+  elements.stockQuery.setAttribute("aria-expanded", "false");
+}
+
+function renderStockSuggestions(query = elements.stockQuery.value) {
+  const normalizedQuery = normalizeStockSearch(query);
+  if (!elements.addDialog.open || !normalizedQuery) {
+    hideStockSuggestions();
+    elements.stockSuggestionPanel.replaceChildren();
+    return;
+  }
+
+  const matches = findMatchingStocks(query);
   const fragment = document.createDocumentFragment();
-  stocks.forEach(([code, stock]) => {
-    const option = document.createElement("option");
-    option.value = stock.name || code;
-    option.label = code;
-    fragment.append(option);
+  const summary = document.createElement("div");
+  summary.className = "stock-suggestion-summary";
+  summary.textContent = matches.length
+    ? `找到 ${matches.length} 只匹配股票${matches.length > 6 ? "，显示前 6 只" : ""}`
+    : "没有找到匹配股票";
+  fragment.append(summary);
+
+  matches.slice(0, 6).forEach((stock) => {
+    const isAdded = state.codes.includes(stock.code);
+    const button = document.createElement("button");
+    button.className = "stock-suggestion-option";
+    button.type = "button";
+    button.dataset.stockSuggestion = stock.code;
+    button.dataset.stockName = stock.name;
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", "false");
+    button.disabled = isAdded;
+
+    const identity = document.createElement("span");
+    identity.className = "stock-suggestion-identity";
+    const name = document.createElement("strong");
+    name.textContent = stock.name;
+    const code = document.createElement("span");
+    code.textContent = stock.code;
+    identity.append(name, code);
+    button.append(identity);
+
+    if (isAdded) {
+      const status = document.createElement("span");
+      status.className = "stock-suggestion-status";
+      status.textContent = "已添加";
+      button.append(status);
+    }
+    fragment.append(button);
   });
-  elements.stockSuggestions.replaceChildren(fragment);
+  elements.stockSuggestionPanel.replaceChildren(fragment);
+  elements.stockSuggestionPanel.hidden = false;
+  elements.stockQuery.setAttribute("aria-expanded", "true");
 }
 
 function formatTime(value) {
@@ -563,38 +646,33 @@ function showToast(message) {
 function openAddDialog() {
   elements.addForm.reset();
   elements.formError.textContent = "";
+  hideStockSuggestions();
   elements.addDialog.showModal();
   window.setTimeout(() => elements.stockQuery.focus(), 30);
 }
 
 function closeAddDialog() {
+  hideStockSuggestions();
   elements.addDialog.close();
 }
 
 function resolveStockQuery(query) {
-  if (/^\d{6}$/.test(query)) return { code: query };
-
-  const normalizedQuery = query.toLocaleLowerCase("zh-CN").replace(/\s+/g, "");
-  const stocks = Object.entries(state.market?.stocks || {}).map(
-    ([code, stock]) => ({
-      code,
-      name: stock.name || code,
-      normalizedName: (stock.name || "")
-        .toLocaleLowerCase("zh-CN")
-        .replace(/\s+/g, ""),
-    }),
-  );
-  const exactMatch = stocks.find(
-    (stock) => stock.normalizedName === normalizedQuery,
+  const normalizedQuery = normalizeStockSearch(query);
+  const matches = findMatchingStocks(query);
+  const exactMatch = matches.find(
+    (stock) =>
+      stock.code === normalizedQuery ||
+      normalizeStockSearch(stock.name) === normalizedQuery,
   );
   if (exactMatch) return { code: exactMatch.code };
 
-  const partialMatches = stocks.filter((stock) =>
-    stock.normalizedName.includes(normalizedQuery),
-  );
-  if (partialMatches.length === 1) return { code: partialMatches[0].code };
-  if (partialMatches.length > 1) {
-    return { error: `找到 ${partialMatches.length} 只匹配股票，请输入完整名称` };
+  if (matches.length === 1) return { code: matches[0].code };
+  if (matches.length > 1) {
+    const names = matches
+      .slice(0, 3)
+      .map((stock) => stock.name)
+      .join("、");
+    return { error: `找到 ${matches.length} 只：${names}，请从提示中选择` };
   }
   return { error: "没有找到该股票，请检查名称或代码" };
 }
@@ -684,9 +762,19 @@ elements.stockRows.addEventListener("click", (event) => {
 elements.addDialog.addEventListener("click", (event) => {
   if (event.target === elements.addDialog) closeAddDialog();
 });
+elements.stockSuggestionPanel.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-stock-suggestion]");
+  if (!button || button.disabled) return;
+  elements.stockQuery.value = button.dataset.stockName;
+  elements.formError.textContent = "";
+  hideStockSuggestions();
+  elements.stockQuery.focus();
+});
 elements.stockQuery.addEventListener("input", () => {
   elements.formError.textContent = "";
+  renderStockSuggestions();
 });
+elements.stockQuery.addEventListener("focus", () => renderStockSuggestions());
 
 window.addEventListener("DOMContentLoaded", () => {
   if (!Array.isArray(state.codes)) state.codes = [...DEFAULT_CODES];
