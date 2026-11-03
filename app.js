@@ -125,7 +125,6 @@ const EXTRA_CODES = [
   "600018",
   "600019",
   "600023",
-  "600035",
   "600039",
   "600066",
   "600096",
@@ -191,15 +190,18 @@ const LATEST_ADDED_CODES = [
   "605337",
 ];
 
+const REMOVED_CODES = new Set(["600035"]);
+
 const DEFAULT_CODES = [
   ...new Set([...BASE_CODES, ...BANK_CODES, ...EXTRA_CODES]),
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v13",
+  watchlist: "a-share-dip-watch:watchlist:v14",
   starred: "a-share-dip-watch:starred:v1",
-  previousWatchlist: "a-share-dip-watch:watchlist:v12",
+  previousWatchlist: "a-share-dip-watch:watchlist:v13",
   legacyWatchlists: [
+    "a-share-dip-watch:watchlist:v12",
     "a-share-dip-watch:watchlist:v11",
     "a-share-dip-watch:watchlist:v10",
     "a-share-dip-watch:watchlist:v9",
@@ -361,8 +363,9 @@ function loadWatchlist() {
 
   const previous = loadJson(STORAGE_KEYS.previousWatchlist, null);
   if (Array.isArray(previous)) {
-    // Add the latest requested stocks once while preserving existing choices.
-    const migrated = [...new Set([...previous, ...LATEST_ADDED_CODES])];
+    // Apply requested additions and removals once while preserving other choices.
+    const migrated = [...new Set([...previous, ...LATEST_ADDED_CODES])]
+      .filter((code) => !REMOVED_CODES.has(code));
     saveJson(STORAGE_KEYS.watchlist, migrated);
     return migrated;
   }
@@ -378,7 +381,7 @@ function loadWatchlist() {
       ...BANK_CODES,
       ...EXTRA_CODES,
     ]),
-  ];
+  ].filter((code) => !REMOVED_CODES.has(code));
   saveJson(STORAGE_KEYS.watchlist, migrated);
   return migrated;
 }
