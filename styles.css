@@ -412,6 +412,36 @@ button:disabled {
   text-align: center;
 }
 
+.reset-filters-button {
+  height: 38px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--ink-muted);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.reset-filters-button:hover {
+  color: var(--ink);
+  border-color: #b39a5a;
+  background: #faf8f2;
+}
+
+.reset-filters-button svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  stroke-width: 1.8;
+}
+
 .stock-search-control {
   position: relative;
   display: flex;
@@ -1324,6 +1354,10 @@ noscript {
   .filter-group .star-filter-control {
     grid-column: 1 / -1;
     justify-content: center;
+  }
+
+  .filter-group .reset-filters-button {
+    grid-column: 1 / -1;
   }
 
   .filter-group .sort-order-field,

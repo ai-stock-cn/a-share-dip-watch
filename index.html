@@ -9,9 +9,9 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=41" />
+    <link rel="stylesheet" href="./styles.css?v=42" />
     <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=43"></script>
+    <script defer src="./app.js?v=44"></script>
   </head>
   <body>
     <header class="app-header">
@@ -135,6 +135,8 @@
                 <option value="twoYearLowDescending">两年低价距离 ↓</option>
                 <option value="ma250Ascending">MA250 距离升序</option>
                 <option value="ma250Descending">MA250 距离降序</option>
+                <option value="trackPositionAscending">一年位置：低 → 高</option>
+                <option value="trackPositionDescending">一年位置：高 → 低</option>
               </select>
             </label>
             <label class="control-field two-year-low-filter-field" for="twoYearLowFilter" title="今年+去年两年的最低价；与其他筛选条件同时生效，数据不足时不纳入距离筛选">
@@ -184,6 +186,13 @@
                 <option value="upper">上轨</option>
               </select>
             </label>
+            <button id="resetFiltersButton" class="reset-filters-button" type="button" title="清空当前筛选条件并恢复默认排序">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 3-6.7" />
+                <path d="M3 4v6h6" />
+              </svg>
+              <span>重置筛选</span>
+            </button>
           </div>
           <div class="page-settings">
             <span id="resultCount" class="result-count">-- 只</span>

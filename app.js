@@ -280,6 +280,7 @@ const elements = {
   periodFilter: document.querySelector("#periodFilter"),
   previousPageButton: document.querySelector("#previousPageButton"),
   refreshButton: document.querySelector("#refreshButton"),
+  resetFiltersButton: document.querySelector("#resetFiltersButton"),
   resultCount: document.querySelector("#resultCount"),
   sortOrder: document.querySelector("#sortOrder"),
   stockCount: document.querySelector("#stockCount"),
@@ -854,14 +855,19 @@ function sortQuotes(quotes) {
       state.sortOrder === "twoYearLowAscending" ||
       state.sortOrder === "twoYearLowDescending" ||
       state.sortOrder === "ma250Ascending" ||
-      state.sortOrder === "ma250Descending"
+      state.sortOrder === "ma250Descending" ||
+      state.sortOrder === "trackPositionAscending" ||
+      state.sortOrder === "trackPositionDescending"
     ) {
       const twoYearSort = state.sortOrder.startsWith("twoYearLow");
       const ma250Sort = state.sortOrder.startsWith("ma250");
-      const aDistance = twoYearSort ? a.twoYearLow.distancePct
+      const trackPositionSort = state.sortOrder.startsWith("trackPosition");
+      const aDistance = trackPositionSort ? a.priceTrackPosition1y
+        : twoYearSort ? a.twoYearLow.distancePct
         : ma250Sort ? ma250DistancePct(a)
           : getBollLowerRailSignal(a.price, a.bollTracks[state.bollPeriod]?.lower).distancePct;
-      const bDistance = twoYearSort ? b.twoYearLow.distancePct
+      const bDistance = trackPositionSort ? b.priceTrackPosition1y
+        : twoYearSort ? b.twoYearLow.distancePct
         : ma250Sort ? ma250DistancePct(b)
           : getBollLowerRailSignal(b.price, b.bollTracks[state.bollPeriod]?.lower).distancePct;
       const aValid = Number.isFinite(aDistance);
@@ -1077,13 +1083,15 @@ function render() {
     const periodLabel = BOLL_PERIOD_META[state.bollPeriod].label;
     const twoYearSort = state.sortOrder.startsWith("twoYearLow");
     const ma250Sort = state.sortOrder.startsWith("ma250");
-    const distanceLabel = twoYearSort ? "两年低价距离"
+    const trackPositionSort = state.sortOrder.startsWith("trackPosition");
+    const distanceLabel = trackPositionSort ? "近一年位置"
+      : twoYearSort ? "两年低价距离"
       : ma250Sort ? "MA250 距离"
         : `${periodLabel} BOLL 下轨距离`;
-    const distanceSortLabel =
-      state.sortOrder.endsWith("Ascending")
-        ? `${distanceLabel}升序（负值在前）`
-        : `${distanceLabel}降序（正值在前）`;
+    const ascending = state.sortOrder.endsWith("Ascending");
+    const distanceSortLabel = trackPositionSort
+      ? `${distanceLabel}${ascending ? "升序（低位在前）" : "降序（高位在前）"}`
+      : `${distanceLabel}${ascending ? "升序（负值在前）" : "降序（正值在前）"}`;
     elements.changeHeader.setAttribute("aria-sort", "none");
     elements.changeSortIcon.textContent = "↕";
     elements.changeSortButton.title = `当前按${distanceSortLabel}排序，点击改为跌幅优先`;
@@ -1407,6 +1415,24 @@ function toggleStar(code) {
   showToast(`${wasStarred ? "已取消关注" : "已关注"} ${quote?.name || code}`);
 }
 
+function resetFilters() {
+  state.period = "daily";
+  state.threshold = 0;
+  state.twoYearLowRange = "all";
+  state.ma250Position = "all";
+  state.industry = "all";
+  state.enterpriseNature = "all";
+  state.bollPeriod = "day";
+  state.bollBand = "all";
+  state.starredOnly = false;
+  state.searchQuery = "";
+  state.sortOrder = "decline";
+  state.page = 1;
+  elements.stockListSearch.value = "";
+  render();
+  showToast("筛选条件已重置");
+}
+
 function showDeclineShortcut(threshold) {
   state.period = "daily";
   state.threshold = threshold;
@@ -1433,6 +1459,7 @@ elements.addButton.addEventListener("click", openAddDialog);
 elements.closeDialogButton.addEventListener("click", closeAddDialog);
 elements.addForm.addEventListener("submit", addStock);
 elements.refreshButton.addEventListener("click", refresh);
+elements.resetFiltersButton.addEventListener("click", resetFilters);
 elements.severeDeclineShortcut.addEventListener("click", () => {
   showDeclineShortcut(5);
 });
@@ -1506,6 +1533,8 @@ elements.sortOrder.addEventListener("change", (event) => {
     "twoYearLowDescending",
     "ma250Ascending",
     "ma250Descending",
+    "trackPositionAscending",
+    "trackPositionDescending",
   ].includes(event.target.value)
     ? event.target.value
     : "decline";
