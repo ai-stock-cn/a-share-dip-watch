@@ -26,7 +26,7 @@ DATA_DIR = ROOT / "data"
 MARKET_PATH = DATA_DIR / "market.json"
 DIVIDEND_PATH = DATA_DIR / "dividends.json"
 CODES_PATH = DATA_DIR / "codes.json"
-EXPECTED_UNIVERSE_SIZE = 117
+EXPECTED_UNIVERSE_SIZE = 129
 HISTORY_LIMIT = 520
 WEEKLY_HISTORY_LIMIT = 600
 HISTORICAL_DIVIDEND_YEARS = 10
@@ -161,7 +161,7 @@ def fetch_quotes(
             except ValueError:
                 pass
             stocks[code] = {
-                "name": fields[1] or stocks[code]["name"],
+                "name": stocks[code]["name"],
                 "industry": stocks[code]["industry"],
                 "industryDetail": stocks[code]["industryDetail"],
                 "price": price,
