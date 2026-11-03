@@ -405,7 +405,7 @@ button:disabled {
 }
 
 .table-shell {
-  overflow: hidden;
+  overflow-x: auto;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -413,6 +413,7 @@ button:disabled {
 
 table {
   width: 100%;
+  min-width: 900px;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -477,7 +478,7 @@ tbody tr:hover {
 
 th:first-child,
 td:first-child {
-  width: 34%;
+  width: 26%;
 }
 
 th.numeric,
@@ -487,23 +488,69 @@ td.numeric {
 
 .history-yield-column,
 .history-yield-cell {
-  width: 22%;
+  width: 18%;
   text-align: right;
+}
+
+.annual-low-column,
+.annual-low-cell {
+  width: 18%;
+  text-align: right;
+}
+
+.annual-low-list {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.annual-low-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.annual-low-year {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  color: var(--ink-muted);
+}
+
+.annual-low-year small {
+  font-size: 10px;
+}
+
+.annual-low-item strong {
+  font-weight: 650;
+}
+
+.annual-low-note {
+  display: block;
+  margin-top: 9px;
+  color: var(--ink-muted);
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 .change-column,
 .change-cell {
-  width: 18%;
+  width: 16%;
 }
 
 .current-yield-column,
 .current-yield-cell {
-  width: 19%;
+  width: 15%;
 }
 
 .action-column,
 .row-action-cell {
   width: 7%;
+  padding-right: 8px;
+  padding-left: 8px;
   text-align: right;
 }
 
@@ -1161,27 +1208,27 @@ noscript {
 
   th:first-child,
   td:first-child {
-    width: 32%;
+    width: 26%;
     padding-left: 12px;
   }
 
   .history-yield-column,
   .history-yield-cell {
-    width: 25%;
+    width: 18%;
     padding-right: 4px;
     padding-left: 4px;
   }
 
   .change-column,
   .change-cell {
-    width: 17%;
+    width: 16%;
     padding-right: 3px;
     padding-left: 3px;
   }
 
   .current-yield-column,
   .current-yield-cell {
-    width: 19%;
+    width: 15%;
     padding-right: 3px;
     padding-left: 3px;
   }

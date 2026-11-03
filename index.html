@@ -9,9 +9,9 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=34" />
+    <link rel="stylesheet" href="./styles.css?v=35" />
     <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=34"></script>
+    <script defer src="./app.js?v=35"></script>
   </head>
   <body>
     <header class="app-header">
@@ -168,6 +168,7 @@
               <tr>
                 <th scope="col">股票</th>
                 <th scope="col" class="history-yield-column">历史股息率</th>
+                <th scope="col" class="annual-low-column" title="按不复权日 K 的最低价统计；本年为截至数据日期的年内最低价">近三年最低价</th>
                 <th id="changeHeader" scope="col" class="numeric change-column" aria-sort="ascending">
                   <button id="changeSortButton" class="column-sort-button" type="button">
                     <span id="changeHeaderLabel">当日涨跌幅</span>
@@ -182,7 +183,7 @@
             </thead>
             <tbody id="stockRows">
               <tr class="loading-row">
-                <td colspan="5">
+                <td colspan="6">
                   <span class="spinner" aria-hidden="true"></span>
                   正在读取行情
                 </td>

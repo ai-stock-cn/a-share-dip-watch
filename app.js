@@ -427,6 +427,7 @@ function quoteFor(code) {
     historicalMaxDividendPerShare: numberOrNull(
       stock.historicalMaxDividendPerShare,
     ),
+    recentAnnualLowPrices3y: normalizeAnnualLowPrices(stock),
     recentDividendYields3y: (stock.recentDividendYields3y || [])
       .map((item) => ({
         year: numberOrNull(item.year),
@@ -453,6 +454,42 @@ function formatYield(value) {
 function formatPrice(value) {
   if (!Number.isFinite(value)) return "--";
   return `¥${value.toFixed(2)}`;
+}
+
+function normalizeAnnualLowPrices(stock) {
+  const currentYear = Number(shanghaiParts().year);
+  const rows = stock.recentAnnualLowPricesBasis === "unadjusted_daily_low_v1" &&
+    Array.isArray(stock.recentAnnualLowPrices3y) ? stock.recentAnnualLowPrices3y : [];
+  return Array.from({ length: 3 }, (_, index) => {
+    const year = currentYear - 2 + index;
+    const item = rows.find((row) => row && Number(row.year) === year);
+    const price = numberOrNull(item?.price);
+    const valid = price > 0 && ["full", "partial"].includes(item?.coverage);
+    const asOf = /^\d{4}-\d{2}-\d{2}$/.test(item?.asOf) ? item.asOf : null;
+    // A cached year-to-date low cannot become a full-year low at midnight on Jan 1.
+    const unfinishedPastYear = year < currentYear && (!asOf || asOf <= `${year}-12-31`);
+    return {
+      year,
+      price: valid ? price : null,
+      date: valid && /^\d{4}-\d{2}-\d{2}$/.test(item?.date) ? item.date : null,
+      asOf,
+      coverage: valid ? (unfinishedPastYear ? "partial" : item.coverage) : "missing",
+      current: year === currentYear,
+    };
+  });
+}
+
+function annualLowRows(quote) {
+  return quote.recentAnnualLowPrices3y.map((item) => {
+    const available = Number.isFinite(item.price);
+    const period = item.current ? "年内最低" : "年度最低";
+    const label = item.coverage === "partial" ? "区间最低" : period;
+    const title = available
+      ? `${item.year} 年${label}：${formatPrice(item.price)}；不复权日 K 最低价；最低价日期：${item.date || "未知"}；数据截至：${item.asOf || "未知"}${item.coverage === "partial" ? "；数据未确认覆盖完整年度，不代表完整年度最低价" : ""}`
+      : `${item.year} 年最低价暂无数据，等待历史行情同步`;
+    const note = item.coverage === "partial" ? "区间最低" : item.current ? "年内" : "";
+    return `<span class="annual-low-item" title="${escapeHtml(title)}"><span class="annual-low-year">${item.year}${note ? `<small>${note}</small>` : ""}</span><strong>${available ? escapeHtml(formatPrice(item.price)) : "暂无数据"}</strong></span>`;
+  }).join("");
 }
 
 function formatBollValue(value) {
@@ -600,31 +637,32 @@ function rowTemplate(quote) {
   const historicalPriceText = Number.isFinite(
     quote.historicalMaxDividendPrice,
   )
-    ? `低价 ${formatPrice(quote.historicalMaxDividendPrice)}`
-    : "低价 --";
+    ? `计算价 ${formatPrice(quote.historicalMaxDividendPrice)}`
+    : "计算价 --";
   const historicalYieldTitle =
     Number.isFinite(quote.historicalMaxDividendYield10y) &&
     Number.isFinite(quote.historicalMaxDividendYear) &&
     Number.isFinite(quote.historicalMaxDividendPrice) &&
     Number.isFinite(quote.historicalMaxDividendPerShare)
-      ? `近10年峰值：${quote.historicalMaxDividendYear} 年度每股分红 ${formatPrice(quote.historicalMaxDividendPerShare)} ÷ ${quote.historicalMaxDividendYear + 1} 年最低周价 ${formatPrice(quote.historicalMaxDividendPrice)} = ${formatYield(quote.historicalMaxDividendYield10y)}`
+      ? `近10年峰值：${quote.historicalMaxDividendYear} 年度每股分红 ${formatPrice(quote.historicalMaxDividendPerShare)} ÷ ${quote.historicalMaxDividendYear + 1} 年股息计算价 ${formatPrice(quote.historicalMaxDividendPrice)} = ${formatYield(quote.historicalMaxDividendYield10y)}`
       : "暂无近10年历史股息率";
   const recentYieldRows = quote.recentDividendYields3y
     .map((item) => {
       const yieldText = formatYield(item.yieldPct);
       const priceText = Number.isFinite(item.priceUsed)
-        ? `低价 ${formatPrice(item.priceUsed)}`
-        : "低价 --";
+        ? `计算价 ${formatPrice(item.priceUsed)}`
+        : "计算价 --";
       const itemTitle =
         Number.isFinite(item.yieldPct) &&
         Number.isFinite(item.priceUsed) &&
         Number.isFinite(item.dividendPerShare)
-        ? `${item.year} 年股息率：${item.dividendYear} 年度每股分红 ${formatPrice(item.dividendPerShare)} ÷ ${item.year} 年最低周价 ${formatPrice(item.priceUsed)} = ${formatYield(item.yieldPct)}`
+        ? `${item.year} 年股息率：${item.dividendYear} 年度每股分红 ${formatPrice(item.dividendPerShare)} ÷ ${item.year} 年股息计算价 ${formatPrice(item.priceUsed)} = ${formatYield(item.yieldPct)}`
         : `${item.year} 年暂无完整数据`;
       return `<span class="recent-yield-item" title="${escapeHtml(itemTitle)}"><span>${item.year}</span><span class="recent-yield-values"><strong>${escapeHtml(yieldText)}</strong><small>${escapeHtml(priceText)}</small></span></span>`;
     })
     .join("");
   const quoteUrl = stockQuoteUrl(quote.code);
+  const annualLowAsOf = quote.recentAnnualLowPrices3y.find((item) => item.current)?.asOf;
   return `
     <tr data-code="${escapeHtml(quote.code)}">
       <td>
@@ -651,6 +689,10 @@ function rowTemplate(quote) {
           <span class="metric-note-peak-price">${escapeHtml(historicalPriceText)}</span>
           <span class="recent-yield-list" aria-label="最近三年历史股息率">${recentYieldRows}</span>
         </div>
+      </td>
+      <td class="annual-low-cell">
+        <div class="annual-low-list" aria-label="最近三年最低股价">${annualLowRows(quote)}</div>
+        <small class="annual-low-note">不复权 · ${annualLowAsOf ? `本年截至 ${escapeHtml(annualLowAsOf)}` : "本年待同步"}</small>
       </td>
       <td class="numeric change-cell">
         <span class="metric ${declineClass(changeValue)}">${formatPercent(changeValue)}</span>
@@ -780,21 +822,21 @@ function render() {
 
   if (!state.codes.length) {
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="5">暂无自选股</td></tr>`;
+      <tr class="empty-row"><td colspan="6">暂无自选股</td></tr>`;
   } else if (!availableQuotes.length && state.loading) {
     elements.stockRows.innerHTML = `
       <tr class="loading-row">
-        <td colspan="5"><span class="spinner" aria-hidden="true"></span>正在读取行情</td>
+        <td colspan="6"><span class="spinner" aria-hidden="true"></span>正在读取行情</td>
       </tr>`;
   } else if (!availableQuotes.length) {
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="5">行情暂不可用</td></tr>`;
+      <tr class="empty-row"><td colspan="6">行情暂不可用</td></tr>`;
   } else if (!filteredQuotes.length) {
     const waitingForHistory = state.period === "largestDaily" && availableQuotes.some(
       (quote) => quote.historyAsOf !== shanghaiParts().day,
     );
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="5">${state.searchQuery.trim() ? "没有找到匹配的股票" : waitingForHistory ? "历史指标待同步，暂无法完整判断今日异常" : "没有符合筛选条件的股票"}</td></tr>`;
+      <tr class="empty-row"><td colspan="6">${state.searchQuery.trim() ? "没有找到匹配的股票" : waitingForHistory ? "历史指标待同步，暂无法完整判断今日异常" : "没有符合筛选条件的股票"}</td></tr>`;
   } else {
     elements.stockRows.innerHTML = pageQuotes.map(rowTemplate).join("");
   }
