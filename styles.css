@@ -719,6 +719,7 @@ td.numeric {
 
 .stock-code,
 .industry-tag,
+.enterprise-nature-tag,
 .price-track,
 .metric-note {
   color: var(--ink-muted);
@@ -726,13 +727,20 @@ td.numeric {
   line-height: 1.25;
 }
 
-.industry-tag {
+.industry-tag,
+.enterprise-nature-tag {
   padding: 1px 4px;
   border: 1px solid var(--line-strong);
   border-radius: 2px;
   background: var(--neutral-soft);
   color: var(--ink-muted);
   white-space: nowrap;
+}
+
+.enterprise-nature-tag {
+  border-color: #d7cfbc;
+  background: #faf7ef;
+  color: #685b3b;
 }
 
 .price-track {

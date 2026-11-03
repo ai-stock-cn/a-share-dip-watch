@@ -95,24 +95,35 @@ const BANK_CODES = [
 const EXTRA_CODES = [
   "000429",
   "000568",
+  "000719",
   "000848",
   "000999",
   "001965",
+  "002003",
+  "002014",
+  "002027",
+  "002091",
   "002128",
   "002216",
   "002271",
   "002293",
+  "002299",
   "002327",
   "002415",
   "002555",
   "002557",
   "002572",
   "002582",
+  "002746",
   "002818",
   "002832",
   "002867",
+  "002884",
+  "300628",
+  "300770",
   "600012",
   "600018",
+  "600019",
   "600023",
   "600035",
   "600039",
@@ -129,18 +140,24 @@ const EXTRA_CODES = [
   "600350",
   "600377",
   "600398",
+  "600415",
   "600566",
   "600582",
   "600585",
   "600600",
+  "600755",
+  "600803",
   "601000",
   "601006",
+  "601083",
   "601098",
+  "601107",
   "601225",
   "601298",
   "601336",
   "601390",
   "601668",
+  "601717",
   "601816",
   "601919",
   "601928",
@@ -153,18 +170,23 @@ const EXTRA_CODES = [
 ];
 
 const LATEST_ADDED_CODES = [
-  "000429",
-  "000999",
-  "001965",
-  "600012",
-  "600018",
-  "600285",
-  "600350",
-  "601000",
-  "601006",
-  "601298",
-  "601390",
-  "601816",
+  "000719",
+  "002003",
+  "002014",
+  "002027",
+  "002091",
+  "002299",
+  "002746",
+  "002884",
+  "300628",
+  "300770",
+  "600019",
+  "600415",
+  "600755",
+  "600803",
+  "601083",
+  "601107",
+  "601717",
 ];
 
 const DEFAULT_CODES = [
@@ -172,10 +194,11 @@ const DEFAULT_CODES = [
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v11",
+  watchlist: "a-share-dip-watch:watchlist:v12",
   starred: "a-share-dip-watch:starred:v1",
-  previousWatchlist: "a-share-dip-watch:watchlist:v10",
+  previousWatchlist: "a-share-dip-watch:watchlist:v11",
   legacyWatchlists: [
+    "a-share-dip-watch:watchlist:v10",
     "a-share-dip-watch:watchlist:v9",
     "a-share-dip-watch:watchlist:v8",
     "a-share-dip-watch:watchlist:v7",
@@ -185,7 +208,7 @@ const STORAGE_KEYS = {
     "a-share-dip-watch:watchlist:v3",
     "a-share-dip-watch:watchlist:v2",
   ],
-  market: "a-share-dip-watch:market:v12",
+  market: "a-share-dip-watch:market:v13",
 };
 
 const FILTER_META = {
@@ -246,6 +269,7 @@ const elements = {
   confirmAddButton: document.querySelector("#confirmAddButton"),
   severeDeclineCount: document.querySelector("#severeDeclineCount"),
   severeDeclineShortcut: document.querySelector("#severeDeclineShortcut"),
+  enterpriseNatureFilter: document.querySelector("#enterpriseNatureFilter"),
   formError: document.querySelector("#formError"),
   industryFilter: document.querySelector("#industryFilter"),
   marketStatus: document.querySelector("#marketStatus"),
@@ -282,6 +306,7 @@ const state = {
   missingQuotes: 0,
   bollBand: "all",
   bollPeriod: "day",
+  enterpriseNature: "all",
   industry: "all",
   period: "daily",
   threshold: 0,
@@ -455,6 +480,7 @@ function quoteFor(code) {
     name: stock.name || code,
     industry: stock.industry || "行业待同步",
     industryDetail: stock.industryDetail || stock.industry || "行业待同步",
+    enterpriseNature: stock.enterpriseNature || "性质待同步",
     price: numberOrNull(stock.price),
     changePct: numberOrNull(stock.changePct),
     quoteTime: stockQuoteTime(stored),
@@ -758,6 +784,7 @@ function rowTemplate(quote) {
         <div class="stock-meta">
           <span class="stock-code">${escapeHtml(quote.code)}</span>
           <span class="industry-tag" title="同花顺申万行业：${escapeHtml(quote.industryDetail)}">${escapeHtml(quote.industry)}</span>
+          <span class="enterprise-nature-tag" title="企业性质：${escapeHtml(quote.enterpriseNature)}">${escapeHtml(quote.enterpriseNature)}</span>
           <span class="price-track ${track?.className || "unknown"}" title="${escapeHtml(trackTitle)}">${escapeHtml(trackText)}</span>
         </div>
         <div class="boll-track-list" aria-label="BOLL 日周月轨道">${bollTrackRows}</div>
@@ -864,6 +891,34 @@ function renderIndustryOptions(quotes) {
   elements.industryFilter.value = state.industry;
 }
 
+function renderEnterpriseNatureOptions(quotes) {
+  const natureCounts = quotes.reduce((counts, quote) => {
+    counts.set(
+      quote.enterpriseNature,
+      (counts.get(quote.enterpriseNature) || 0) + 1,
+    );
+    return counts;
+  }, new Map());
+  const natures = [...natureCounts.entries()].sort(
+    ([natureA, countA], [natureB, countB]) =>
+      countB - countA || natureA.localeCompare(natureB, "zh-CN"),
+  );
+  if (
+    state.enterpriseNature !== "all" &&
+    !natureCounts.has(state.enterpriseNature)
+  ) {
+    state.enterpriseNature = "all";
+  }
+  elements.enterpriseNatureFilter.innerHTML = [
+    `<option value="all">全部性质</option>`,
+    ...natures.map(
+      ([nature, count]) =>
+        `<option value="${escapeHtml(nature)}" title="${escapeHtml(nature)}：${count} 只">${escapeHtml(nature)}</option>`,
+    ),
+  ].join("");
+  elements.enterpriseNatureFilter.value = state.enterpriseNature;
+}
+
 function matchesFilters(quote) {
   if (state.starredOnly && !state.starredCodes.has(quote.code)) return false;
   const searchQuery = normalizeStockSearch(state.searchQuery);
@@ -872,12 +927,19 @@ function matchesFilters(quote) {
       fuzzyMatchScore(normalizeStockSearch(quote.name), searchQuery),
       fuzzyMatchScore(quote.code, searchQuery),
       fuzzyMatchScore(normalizeStockSearch(quote.industryDetail), searchQuery),
+      fuzzyMatchScore(normalizeStockSearch(quote.enterpriseNature), searchQuery),
     );
     if (!Number.isFinite(searchScore)) return false;
   }
   const metric = metricFor(quote);
   if (!Number.isFinite(metric)) return false;
   if (state.industry !== "all" && quote.industry !== state.industry) {
+    return false;
+  }
+  if (
+    state.enterpriseNature !== "all" &&
+    quote.enterpriseNature !== state.enterpriseNature
+  ) {
     return false;
   }
   if (state.threshold > 0 && metric > -state.threshold) return false;
@@ -915,6 +977,7 @@ function render() {
     (quote) => quoteStatus(quote.quoteTime).day === shanghaiParts().day,
   );
   renderIndustryOptions(availableQuotes);
+  renderEnterpriseNatureOptions(availableQuotes);
   const filteredQuotes = sortQuotes(availableQuotes.filter(matchesFilters));
   const totalPages = Math.max(1, Math.ceil(filteredQuotes.length / state.pageSize));
   state.page = Math.min(state.page, totalPages);
@@ -1314,6 +1377,7 @@ function showDeclineShortcut(threshold) {
   state.threshold = threshold;
   state.twoYearLowRange = "all";
   state.industry = "all";
+  state.enterpriseNature = "all";
   state.bollBand = "all";
   state.starredOnly = false;
   state.searchQuery = "";
@@ -1358,6 +1422,11 @@ elements.twoYearLowFilter.addEventListener("change", (event) => {
 });
 elements.industryFilter.addEventListener("change", (event) => {
   state.industry = event.target.value || "all";
+  state.page = 1;
+  render();
+});
+elements.enterpriseNatureFilter.addEventListener("change", (event) => {
+  state.enterpriseNature = event.target.value || "all";
   state.page = 1;
   render();
 });

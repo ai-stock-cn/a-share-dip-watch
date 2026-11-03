@@ -26,7 +26,8 @@ DATA_DIR = ROOT / "data"
 MARKET_PATH = DATA_DIR / "market.json"
 DIVIDEND_PATH = DATA_DIR / "dividends.json"
 CODES_PATH = DATA_DIR / "codes.json"
-EXPECTED_UNIVERSE_SIZE = 129
+ENTERPRISE_NATURES_PATH = DATA_DIR / "enterprise_natures.json"
+EXPECTED_UNIVERSE_SIZE = 146
 HISTORY_LIMIT = 520
 WEEKLY_HISTORY_LIMIT = 600
 HISTORICAL_DIVIDEND_YEARS = 10
@@ -88,6 +89,15 @@ def request_text(
 
 def load_universe() -> list[dict[str, str]]:
     payload = json.loads(CODES_PATH.read_text(encoding="utf-8"))
+    nature_groups = json.loads(ENTERPRISE_NATURES_PATH.read_text(encoding="utf-8"))
+    enterprise_natures: dict[str, str] = {}
+    for nature, codes in nature_groups.items():
+        if not isinstance(nature, str) or not nature.strip() or not isinstance(codes, list):
+            raise RuntimeError(f"invalid enterprise nature group: {nature!r}")
+        for code in codes:
+            if code in enterprise_natures:
+                raise RuntimeError(f"duplicate enterprise nature entry: {code}")
+            enterprise_natures[code] = nature.strip()
     universe: dict[str, dict[str, str]] = {}
     for item in payload:
         code = str(item.get("code", ""))
@@ -107,11 +117,19 @@ def load_universe() -> list[dict[str, str]]:
             "category": str(item.get("category", "")),
             "industry": industry,
             "industryDetail": industry_detail,
+            "enterpriseNature": enterprise_natures.get(code, ""),
         }
     if len(universe) != EXPECTED_UNIVERSE_SIZE:
         raise RuntimeError(
             f"stock universe must contain {EXPECTED_UNIVERSE_SIZE} rows, "
             f"found {len(universe)}"
+        )
+    missing_natures = sorted(set(universe) - set(enterprise_natures))
+    unknown_natures = sorted(set(enterprise_natures) - set(universe))
+    if missing_natures or unknown_natures:
+        raise RuntimeError(
+            "enterprise nature coverage mismatch: "
+            f"missing={missing_natures}, unknown={unknown_natures}"
         )
     return [universe[code] for code in sorted(universe)]
 
@@ -126,6 +144,7 @@ def fetch_quotes(
             "name": item["name"],
             "industry": item["industry"],
             "industryDetail": item["industryDetail"] or item["industry"],
+            "enterpriseNature": item["enterpriseNature"],
             "price": None,
             "changePct": None,
             "quoteTime": None,
@@ -164,6 +183,7 @@ def fetch_quotes(
                 "name": stocks[code]["name"],
                 "industry": stocks[code]["industry"],
                 "industryDetail": stocks[code]["industryDetail"],
+                "enterpriseNature": stocks[code]["enterpriseNature"],
                 "price": price,
                 "changePct": change_pct,
                 "quoteTime": quote_time.isoformat() if quote_time else None,

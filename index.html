@@ -9,9 +9,9 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=38" />
+    <link rel="stylesheet" href="./styles.css?v=39" />
     <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=41"></script>
+    <script defer src="./app.js?v=42"></script>
   </head>
   <body>
     <header class="app-header">
@@ -91,10 +91,10 @@
                 <input
                   id="stockListSearch"
                   type="search"
-                  placeholder="名称、代码或行业"
+                  placeholder="名称、代码、行业或性质"
                   autocomplete="off"
                   spellcheck="false"
-                  aria-label="按股票名称、代码或行业筛选"
+                  aria-label="按股票名称、代码、行业或企业性质筛选"
                 />
               </span>
             </label>
@@ -149,6 +149,12 @@
               <span>行业</span>
               <select id="industryFilter">
                 <option value="all">全部行业</option>
+              </select>
+            </label>
+            <label class="control-field" for="enterpriseNatureFilter">
+              <span>企业性质</span>
+              <select id="enterpriseNatureFilter">
+                <option value="all">全部性质</option>
               </select>
             </label>
             <label class="control-field compact" for="bollPeriodFilter">
