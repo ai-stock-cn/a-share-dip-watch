@@ -979,6 +979,19 @@ def calculate_historical_max_dividend_yield(
     )
 
 
+def calculate_consecutive_dividend_years(
+    annual_dividends: dict[str, float], fiscal_year: int
+) -> int:
+    consecutive_years = 0
+    first_year = fiscal_year - HISTORICAL_DIVIDEND_YEARS + 1
+    for year in range(fiscal_year, first_year - 1, -1):
+        dividend = number_or_none(annual_dividends.get(str(year)))
+        if dividend is None or dividend <= 0:
+            break
+        consecutive_years += 1
+    return consecutive_years
+
+
 def calculate_recent_dividend_yields(
     annual_dividends: dict[str, float],
     annual_low_prices: dict[str, float],
@@ -1057,6 +1070,9 @@ def main() -> None:
         )
         stock.update(history)
         stock.update(recent_annual_lows[code])
+        stock["consecutiveDividendYears"] = calculate_consecutive_dividend_years(
+            annual_dividends.get(code, {}), fiscal_year
+        )
         (
             historical_yield,
             historical_year,

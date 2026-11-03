@@ -919,6 +919,19 @@ td.numeric {
   font-size: 11px;
 }
 
+.consecutive-dividend-years {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 5px;
+  color: var(--accent);
+  background: #edf5f1;
+  border: 1px solid #c9ddd4;
+  border-radius: 2px;
+  font-size: 10px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
 .recent-yield-list {
   margin-top: 3px;
   display: grid;
@@ -1484,7 +1497,8 @@ noscript {
   .filter-group .sort-order-field,
   .filter-group .two-year-low-filter-field,
   .filter-group .ma250-filter-field,
-  .filter-group .price-track-filter-field {
+  .filter-group .price-track-filter-field,
+  .filter-group .dividend-years-filter-field {
     grid-column: 1 / -1;
   }
 

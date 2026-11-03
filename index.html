@@ -9,10 +9,10 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=47" />
+    <link rel="stylesheet" href="./styles.css?v=48" />
     <script defer src="./auth.js?v=2"></script>
     <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=57"></script>
+    <script defer src="./app.js?v=58"></script>
   </head>
   <body class="auth-locked">
     <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -221,6 +221,13 @@
                 <option value="low">低位</option>
                 <option value="middle">中位</option>
                 <option value="high">高位</option>
+              </select>
+            </label>
+            <label class="control-field dividend-years-filter-field" for="dividendYearsFilter" title="按截至最新完整报告年度的连续正分红年数筛选；当前数据窗口为近 10 年">
+              <span>连续分红</span>
+              <select id="dividendYearsFilter">
+                <option value="all">全部年限</option>
+                <option value="10plus">10 年以上</option>
               </select>
             </label>
             <label class="control-field" for="industryFilter">

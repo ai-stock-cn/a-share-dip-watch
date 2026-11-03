@@ -288,6 +288,7 @@ const elements = {
   confirmAddButton: document.querySelector("#confirmAddButton"),
   severeDeclineCount: document.querySelector("#severeDeclineCount"),
   severeDeclineShortcut: document.querySelector("#severeDeclineShortcut"),
+  dividendYearsFilter: document.querySelector("#dividendYearsFilter"),
   enterpriseNatureFilter: document.querySelector("#enterpriseNatureFilter"),
   formError: document.querySelector("#formError"),
   industryFilter: document.querySelector("#industryFilter"),
@@ -328,6 +329,7 @@ const state = {
   missingQuotes: 0,
   bollBand: "all",
   bollPeriod: "day",
+  dividendYears: "all",
   enterpriseNature: "all",
   industry: "all",
   ma250Position: "all",
@@ -532,6 +534,7 @@ function quoteFor(code) {
     ),
     dividendPerShare: numberOrNull(stock.dividendPerShare),
     dividendYear: numberOrNull(stock.dividendYear),
+    consecutiveDividendYears: numberOrNull(stock.consecutiveDividendYears),
     historicalMaxDividendYield10y: numberOrNull(
       stock.historicalMaxDividendYield10y,
     ),
@@ -838,6 +841,19 @@ function rowTemplate(quote) {
     Number.isFinite(quote.historicalMaxDividendPerShare)
       ? `近10年峰值：${quote.historicalMaxDividendYear} 年度每股分红 ${formatPrice(quote.historicalMaxDividendPerShare)} ÷ ${quote.historicalMaxDividendYear + 1} 年股息计算价 ${formatPrice(quote.historicalMaxDividendPrice)} = ${formatYield(quote.historicalMaxDividendYield10y)}`
       : "暂无近10年历史股息率";
+  const consecutiveDividendYears = Number.isFinite(quote.consecutiveDividendYears)
+    ? Math.max(0, Math.trunc(quote.consecutiveDividendYears))
+    : null;
+  const consecutiveDividendText = consecutiveDividendYears === null
+    ? "连续分红 --"
+    : consecutiveDividendYears >= 10
+      ? "连续分红 10 年+"
+      : `连续分红 ${consecutiveDividendYears} 年`;
+  const consecutiveDividendTitle = consecutiveDividendYears === null
+    ? "连续分红数据待同步"
+    : consecutiveDividendYears >= 10
+      ? `截至 ${quote.dividendYear} 年度，近 10 个完整报告年度均有正分红；当前数据窗口为 10 年，实际连续年数可能更长`
+      : `截至 ${quote.dividendYear} 年度，已连续 ${consecutiveDividendYears} 个报告年度有正分红；遇到首个缺失或零分红年度即停止计数`;
   const recentYieldRows = quote.recentDividendYields3y
     .map((item) => {
       const yieldText = formatYield(item.yieldPct);
@@ -890,6 +906,7 @@ function rowTemplate(quote) {
         <div class="metric-note history-yield-note">
           <span class="metric-note-peak" title="${escapeHtml(historicalYieldTitle)}">${escapeHtml(historicalYieldText)}</span>
           <span class="metric-note-peak-price">${escapeHtml(historicalPriceText)}</span>
+          <span class="consecutive-dividend-years" title="${escapeHtml(consecutiveDividendTitle)}">${escapeHtml(consecutiveDividendText)}</span>
           <span class="recent-yield-list" aria-label="最近三年历史股息率">${recentYieldRows}</span>
         </div>
       </td>
@@ -1054,6 +1071,12 @@ function matchesFilters(quote) {
   ) {
     return false;
   }
+  if (
+    state.dividendYears === "10plus" &&
+    (!Number.isFinite(quote.consecutiveDividendYears) || quote.consecutiveDividendYears < 10)
+  ) {
+    return false;
+  }
   if (state.threshold > 0 && metric > -state.threshold) return false;
   if (state.ma250Position !== "all") {
     const distance = ma250DistancePct(quote);
@@ -1143,6 +1166,7 @@ function render() {
   elements.twoYearLowFilter.value = state.twoYearLowRange;
   elements.ma250Filter.value = state.ma250Position;
   elements.priceTrackFilter.value = state.priceTrackBand;
+  elements.dividendYearsFilter.value = state.dividendYears;
   elements.starredOnlyFilter.checked = state.starredOnly;
   const metricSortActive = ["decline", "rise"].includes(state.sortOrder);
   if (metricSortActive) {
@@ -1507,6 +1531,7 @@ function resetFilters() {
   state.twoYearLowRange = "all";
   state.ma250Position = "all";
   state.priceTrackBand = "all";
+  state.dividendYears = "all";
   state.industry = "all";
   state.enterpriseNature = "all";
   state.bollPeriod = "day";
@@ -1526,6 +1551,7 @@ function showDeclineShortcut(threshold) {
   state.twoYearLowRange = "all";
   state.ma250Position = "all";
   state.priceTrackBand = "all";
+  state.dividendYears = "all";
   state.industry = "all";
   state.enterpriseNature = "all";
   state.bollBand = "all";
@@ -1579,6 +1605,12 @@ elements.ma250Filter.addEventListener("change", (event) => {
 });
 elements.priceTrackFilter.addEventListener("change", (event) => {
   state.priceTrackBand = ["all", "low", "middle", "high"].includes(event.target.value)
+    ? event.target.value : "all";
+  state.page = 1;
+  render();
+});
+elements.dividendYearsFilter.addEventListener("change", (event) => {
+  state.dividendYears = ["all", "10plus"].includes(event.target.value)
     ? event.target.value : "all";
   state.page = 1;
   render();
