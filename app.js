@@ -94,6 +94,7 @@ const BANK_CODES = [
 const EXTRA_CODES = [
   "000568",
   "000848",
+  "002128",
   "002216",
   "002271",
   "002293",
@@ -143,7 +144,8 @@ const DEFAULT_CODES = [
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v8",
+  watchlist: "a-share-dip-watch:watchlist:v9",
+  previousWatchlist: "a-share-dip-watch:watchlist:v8",
   legacyWatchlists: [
     "a-share-dip-watch:watchlist:v7",
     "a-share-dip-watch:watchlist:v6",
@@ -272,6 +274,14 @@ function saveJson(key, value) {
 function loadWatchlist() {
   const current = loadJson(STORAGE_KEYS.watchlist, null);
   if (Array.isArray(current)) return current;
+
+  const previous = loadJson(STORAGE_KEYS.previousWatchlist, null);
+  if (Array.isArray(previous)) {
+    // Add the requested stock once while preserving all existing watchlist choices.
+    const migrated = [...new Set([...previous, "002128"])];
+    saveJson(STORAGE_KEYS.watchlist, migrated);
+    return migrated;
+  }
 
   const legacy =
     STORAGE_KEYS.legacyWatchlists
