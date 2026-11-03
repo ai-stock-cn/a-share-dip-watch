@@ -506,10 +506,10 @@ td.numeric {
 }
 
 .annual-low-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 3px 8px;
   white-space: nowrap;
 }
 
@@ -526,6 +526,14 @@ td.numeric {
 
 .annual-low-item strong {
   font-weight: 650;
+}
+
+.annual-low-distance {
+  grid-column: 1 / -1;
+  color: var(--ink-muted);
+  font-size: 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .annual-low-note {
