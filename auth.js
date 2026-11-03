@@ -8,6 +8,8 @@
     iterations: 210000,
   });
   const SESSION_KEY = "a-share-dip-watch:authenticated:v1";
+  const REMEMBER_KEY = "a-share-dip-watch:remembered-login:v1";
+  const REMEMBER_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
   const encoder = new TextEncoder();
 
   function hexToBytes(value) {
@@ -62,15 +64,52 @@
     window.dispatchEvent(new Event("stock-authenticated"));
   }
 
+  function hasSavedLogin() {
+    try {
+      if (sessionStorage.getItem(SESSION_KEY) === "authenticated") return true;
+      const remembered = JSON.parse(localStorage.getItem(REMEMBER_KEY));
+      if (Number(remembered?.expiresAt) > Date.now()) return true;
+      localStorage.removeItem(REMEMBER_KEY);
+    } catch {
+      // The login form remains available when browser storage is unavailable.
+    }
+    return false;
+  }
+
+  function saveLogin(remember) {
+    try {
+      sessionStorage.setItem(SESSION_KEY, "authenticated");
+      if (remember) {
+        localStorage.setItem(REMEMBER_KEY, JSON.stringify({
+          expiresAt: Date.now() + REMEMBER_DURATION_MS,
+        }));
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+      }
+    } catch {
+      // The unlocked page still works when browser storage is unavailable.
+    }
+  }
+
+  function clearLogin() {
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(REMEMBER_KEY);
+    } catch {
+      // Reloading still restores the locked state if storage is unavailable.
+    }
+  }
+
   window.addEventListener("DOMContentLoaded", () => {
     const form = document.querySelector("#loginForm");
     const usernameInput = document.querySelector("#loginUsername");
     const passwordInput = document.querySelector("#loginPassword");
     const errorMessage = document.querySelector("#loginError");
     const loginButton = document.querySelector("#loginButton");
+    const rememberLogin = document.querySelector("#rememberLogin");
     const logoutButton = document.querySelector("#logoutButton");
 
-    if (sessionStorage.getItem(SESSION_KEY) === "authenticated") {
+    if (hasSavedLogin()) {
       unlock();
     } else {
       setAuthenticated(false);
@@ -93,7 +132,7 @@
           return;
         }
 
-        sessionStorage.setItem(SESSION_KEY, "authenticated");
+        saveLogin(rememberLogin.checked);
         form.reset();
         unlock();
       } catch {
@@ -105,7 +144,7 @@
     });
 
     logoutButton?.addEventListener("click", () => {
-      sessionStorage.removeItem(SESSION_KEY);
+      clearLogin();
       window.location.reload();
     });
   });

@@ -9,8 +9,8 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=45" />
-    <script defer src="./auth.js?v=1"></script>
+    <link rel="stylesheet" href="./styles.css?v=46" />
+    <script defer src="./auth.js?v=2"></script>
     <script defer src="./live-market.js?v=34"></script>
     <script defer src="./app.js?v=50"></script>
   </head>
@@ -43,12 +43,16 @@
             autocomplete="current-password"
             required
           />
+          <label class="auth-remember" for="rememberLogin">
+            <input id="rememberLogin" type="checkbox" checked />
+            <span>30 天内保持登录</span>
+          </label>
           <p id="loginError" class="auth-error" role="alert" aria-live="polite"></p>
           <button id="loginButton" class="primary-button auth-submit" type="submit">
             <span>登录</span>
           </button>
         </form>
-        <p class="auth-session-note">登录状态仅保留在当前标签页</p>
+        <p class="auth-session-note">仅保存登录状态，不保存明文密码</p>
       </div>
     </section>
 

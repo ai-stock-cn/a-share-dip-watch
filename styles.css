@@ -1120,6 +1120,24 @@ body:not(.auth-locked) .auth-gate {
   margin-top: 15px;
 }
 
+.auth-form .auth-remember {
+  margin: 14px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.auth-remember input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
 .auth-error {
   min-height: 20px;
   margin: 8px 0;
