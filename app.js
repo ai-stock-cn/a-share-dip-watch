@@ -690,7 +690,7 @@ function getBollAdjacentRailSignal(price, track) {
 
   const railKeys = price <= middle
     ? ["lower", "middle"]
-    : ["middle", "upper"];
+    : ["lower", "middle", "upper"];
 
   const items = railKeys.map((key) => {
     const railPrice = { lower, middle, upper }[key];
@@ -807,7 +807,7 @@ function rowTemplate(quote) {
       .join(" / ")
     : "轨道 --";
   const activeRailTitle = activeRailSignal.items.length
-    ? `${activeBollPeriod.label} BOLL 相邻轨道距离：${activeRailSignal.items
+    ? `${activeBollPeriod.label} BOLL 参考轨道距离：${activeRailSignal.items
       .map((item) => `距${item.label}：(现价 ${formatPrice(quote.price)} - ${item.label} ${formatBollPrice(item.railPrice)}) ÷ ${item.label} ${formatBollPrice(item.railPrice)} = ${formatBollPercent(item.distancePct)}`)
       .join("；")}`
     : `${activeBollPeriod.label} BOLL 轨道距离暂无数据`;
