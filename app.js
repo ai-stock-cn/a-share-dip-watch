@@ -217,7 +217,7 @@ const FILTER_META = {
   largestDaily: { title: "近3月异常", header: "当日涨跌幅" },
 };
 
-const DEFAULT_SORT_ORDER = "ma250Ascending";
+const DEFAULT_SORT_ORDER = "bollAscending";
 
 const PRICE_TRACK_META = {
   low: { label: "低位", className: "low" },
