@@ -12,6 +12,7 @@ const BASE_CODES = [
   "002032",
   "002142",
   "002508",
+  "003816",
   "600011",
   "600028",
   "600036",
@@ -144,10 +145,11 @@ const DEFAULT_CODES = [
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v9",
+  watchlist: "a-share-dip-watch:watchlist:v10",
   starred: "a-share-dip-watch:starred:v1",
-  previousWatchlist: "a-share-dip-watch:watchlist:v8",
+  previousWatchlist: "a-share-dip-watch:watchlist:v9",
   legacyWatchlists: [
+    "a-share-dip-watch:watchlist:v8",
     "a-share-dip-watch:watchlist:v7",
     "a-share-dip-watch:watchlist:v6",
     "a-share-dip-watch:watchlist:v5",
@@ -298,7 +300,7 @@ function loadWatchlist() {
   const previous = loadJson(STORAGE_KEYS.previousWatchlist, null);
   if (Array.isArray(previous)) {
     // Add the requested stock once while preserving all existing watchlist choices.
-    const migrated = [...new Set([...previous, "002128"])];
+    const migrated = [...new Set([...previous, "003816"])];
     saveJson(STORAGE_KEYS.watchlist, migrated);
     return migrated;
   }
