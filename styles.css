@@ -505,6 +505,22 @@ td.numeric {
   font-variant-numeric: tabular-nums;
 }
 
+.two-year-low-summary {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.two-year-low-summary small {
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
 .annual-low-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -1180,6 +1196,11 @@ noscript {
   }
 
   .filter-group .stock-search-field {
+    grid-column: 1 / -1;
+  }
+
+  .filter-group .sort-order-field,
+  .filter-group .two-year-low-filter-field {
     grid-column: 1 / -1;
   }
 
