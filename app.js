@@ -96,6 +96,7 @@ const EXTRA_CODES = [
   "000429",
   "000568",
   "000719",
+  "000755",
   "000848",
   "000999",
   "001965",
@@ -124,10 +125,13 @@ const EXTRA_CODES = [
   "600012",
   "600018",
   "600019",
+  "600020",
   "600023",
+  "600035",
   "600039",
   "600066",
   "600096",
+  "600106",
   "600132",
   "600177",
   "600188",
@@ -140,6 +144,7 @@ const EXTRA_CODES = [
   "600377",
   "600398",
   "600415",
+  "600548",
   "600566",
   "600582",
   "600585",
@@ -170,6 +175,7 @@ const EXTRA_CODES = [
 
 const LATEST_ADDED_CODES = [
   "000719",
+  "000755",
   "002003",
   "002014",
   "002027",
@@ -180,7 +186,11 @@ const LATEST_ADDED_CODES = [
   "300628",
   "300770",
   "600019",
+  "600020",
+  "600035",
+  "600106",
   "600415",
+  "600548",
   "600755",
   "600803",
   "601006",
@@ -190,17 +200,18 @@ const LATEST_ADDED_CODES = [
   "605337",
 ];
 
-const REMOVED_CODES = new Set(["600035"]);
+const REMOVED_CODES = new Set();
 
 const DEFAULT_CODES = [
   ...new Set([...BASE_CODES, ...BANK_CODES, ...EXTRA_CODES]),
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v14",
+  watchlist: "a-share-dip-watch:watchlist:v15",
   starred: "a-share-dip-watch:starred:v1",
-  previousWatchlist: "a-share-dip-watch:watchlist:v13",
+  previousWatchlist: "a-share-dip-watch:watchlist:v14",
   legacyWatchlists: [
+    "a-share-dip-watch:watchlist:v13",
     "a-share-dip-watch:watchlist:v12",
     "a-share-dip-watch:watchlist:v11",
     "a-share-dip-watch:watchlist:v10",
