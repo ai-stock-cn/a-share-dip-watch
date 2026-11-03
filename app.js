@@ -217,6 +217,8 @@ const FILTER_META = {
   largestDaily: { title: "近3月异常", header: "当日涨跌幅" },
 };
 
+const DEFAULT_SORT_ORDER = "bollAscending";
+
 const PRICE_TRACK_META = {
   low: { label: "低位", className: "low" },
   middle: { label: "中位", className: "middle" },
@@ -318,7 +320,7 @@ const state = {
   page: 1,
   pageSize: 50,
   searchQuery: "",
-  sortOrder: "decline",
+  sortOrder: DEFAULT_SORT_ORDER,
   starredCodes: loadStarredCodes(),
   starredOnly: false,
 };
@@ -1438,7 +1440,7 @@ function resetFilters() {
   state.bollBand = "all";
   state.starredOnly = false;
   state.searchQuery = "";
-  state.sortOrder = "decline";
+  state.sortOrder = DEFAULT_SORT_ORDER;
   state.page = 1;
   elements.stockListSearch.value = "";
   render();
@@ -1551,7 +1553,7 @@ elements.sortOrder.addEventListener("change", (event) => {
     "currentPriceDescending",
   ].includes(event.target.value)
     ? event.target.value
-    : "decline";
+    : DEFAULT_SORT_ORDER;
   state.page = 1;
   render();
 });
