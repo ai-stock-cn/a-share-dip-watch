@@ -225,6 +225,7 @@ const elements = {
   stockRows: document.querySelector("#stockRows"),
   stockSuggestionPanel: document.querySelector("#stockSuggestionPanel"),
   thresholdFilter: document.querySelector("#thresholdFilter"),
+  twoYearLowFilter: document.querySelector("#twoYearLowFilter"),
   toast: document.querySelector("#toast"),
   updatedAt: document.querySelector("#updatedAt"),
   watchlistSection: document.querySelector("#watchlistSection"),
@@ -244,6 +245,7 @@ const state = {
   industry: "all",
   period: "daily",
   threshold: 0,
+  twoYearLowRange: "all",
   page: 1,
   pageSize: 50,
   searchQuery: "",
@@ -387,6 +389,7 @@ function quoteFor(code) {
   const stored = state.market?.stocks?.[code];
   if (!stored) return null;
   const stock = { ...stored, ...priceMetrics(stored) };
+  const annualLows = normalizeAnnualLowPrices(stock);
   return {
     code,
     name: stock.name || code,
@@ -427,7 +430,8 @@ function quoteFor(code) {
     historicalMaxDividendPerShare: numberOrNull(
       stock.historicalMaxDividendPerShare,
     ),
-    recentAnnualLowPrices3y: normalizeAnnualLowPrices(stock),
+    recentAnnualLowPrices3y: annualLows,
+    twoYearLow: twoYearLowSummary(annualLows, numberOrNull(stock.price)),
     recentDividendYields3y: (stock.recentDividendYields3y || [])
       .map((item) => ({
         year: numberOrNull(item.year),
@@ -493,6 +497,18 @@ function annualLowRows(quote) {
     const note = item.coverage === "partial" ? "区间最低" : item.current ? "年内" : "";
     return `<span class="annual-low-item" title="${escapeHtml(title)}"><span class="annual-low-year">${item.year}${note ? `<small>${note}</small>` : ""}</span><strong>${available ? escapeHtml(formatPrice(item.price)) : "暂无数据"}</strong><small class="annual-low-distance">现价较低价 ${escapeHtml(distanceText)}</small></span>`;
   }).join("");
+}
+
+function twoYearLowSummary(annualLows, currentPrice) {
+  const currentYear = Number(shanghaiParts().year);
+  const years = [currentYear - 1, currentYear];
+  const rows = years.map((year) => annualLows.find((item) => item.year === year));
+  const complete = rows.every((item) => item?.coverage === "full" &&
+    Number.isFinite(item.price) && item.price > 0 && item.asOf);
+  const price = complete ? Math.min(...rows.map((item) => item.price)) : null;
+  const distancePct = price > 0 && Number.isFinite(currentPrice) && currentPrice > 0
+    ? (currentPrice / price - 1) * 100 : null;
+  return { price, distancePct, yearsLabel: years.join("–") };
 }
 
 function formatBollValue(value) {
@@ -666,6 +682,8 @@ function rowTemplate(quote) {
     .join("");
   const quoteUrl = stockQuoteUrl(quote.code);
   const annualLowAsOf = quote.recentAnnualLowPrices3y.find((item) => item.current)?.asOf;
+  const twoYearLow = quote.twoYearLow;
+  const twoYearLowTitle = `${twoYearLow.yearsLabel}（今年+去年）的不复权最低价；当前年截至 ${annualLowAsOf || "未知"}；（当前价 ÷ 两年最低价 − 1）× 100%；升序按负值到正值排列，不取绝对值${twoYearLow.price === null ? "；两年历史数据不足" : ""}`;
   return `
     <tr data-code="${escapeHtml(quote.code)}">
       <td>
@@ -694,6 +712,10 @@ function rowTemplate(quote) {
         </div>
       </td>
       <td class="annual-low-cell">
+        <div class="two-year-low-summary" title="${escapeHtml(twoYearLowTitle)}">
+          <span>距两年低价 <strong>${escapeHtml(formatPercent(twoYearLow.distancePct))}</strong></span>
+          <small>${escapeHtml(twoYearLow.yearsLabel)} · ${twoYearLow.price === null ? "数据不足" : escapeHtml(formatPrice(twoYearLow.price))}</small>
+        </div>
         <div class="annual-low-list" aria-label="最近三年最低股价">${annualLowRows(quote)}</div>
         <small class="annual-low-note">不复权 · ${annualLowAsOf ? `本年截至 ${escapeHtml(annualLowAsOf)}` : "本年待同步"}</small>
       </td>
@@ -715,13 +737,16 @@ function sortQuotes(quotes) {
   return [...quotes].sort((a, b) => {
     if (
       state.sortOrder === "bollAscending" ||
-      state.sortOrder === "bollDescending"
+      state.sortOrder === "bollDescending" ||
+      state.sortOrder === "twoYearLowAscending" ||
+      state.sortOrder === "twoYearLowDescending"
     ) {
-      const aDistance = getBollLowerRailSignal(
+      const twoYearSort = state.sortOrder.startsWith("twoYearLow");
+      const aDistance = twoYearSort ? a.twoYearLow.distancePct : getBollLowerRailSignal(
         a.price,
         a.bollTracks[state.bollPeriod]?.lower,
       ).distancePct;
-      const bDistance = getBollLowerRailSignal(
+      const bDistance = twoYearSort ? b.twoYearLow.distancePct : getBollLowerRailSignal(
         b.price,
         b.bollTracks[state.bollPeriod]?.lower,
       ).distancePct;
@@ -732,7 +757,7 @@ function sortQuotes(quotes) {
         if (bValid) return 1;
         return a.code.localeCompare(b.code);
       }
-      const direction = state.sortOrder === "bollAscending" ? 1 : -1;
+      const direction = state.sortOrder.endsWith("Ascending") ? 1 : -1;
       return (
         (aDistance - bDistance) * direction ||
         a.code.localeCompare(b.code)
@@ -793,6 +818,16 @@ function matchesFilters(quote) {
     return false;
   }
   if (state.threshold > 0 && metric > -state.threshold) return false;
+  if (state.twoYearLowRange !== "all") {
+    const distance = quote.twoYearLow.distancePct;
+    if (!Number.isFinite(distance)) return false;
+    if (state.twoYearLowRange === "below") {
+      if (distance >= 0) return false;
+    // Preserve inclusive upper bounds despite floating-point noise (e.g. 5.000000000000004%).
+    } else if (distance < 0 || distance > Number(state.twoYearLowRange) + 1e-9) {
+      return false;
+    }
+  }
   if (
     state.bollBand !== "all" &&
     quote.bollTracks[state.bollPeriod]?.band !== state.bollBand
@@ -854,6 +889,7 @@ function render() {
   elements.periodFilter.value = state.period;
   elements.sortOrder.value = state.sortOrder;
   elements.thresholdFilter.value = String(state.threshold);
+  elements.twoYearLowFilter.value = state.twoYearLowRange;
   const metricSortActive = ["decline", "rise"].includes(state.sortOrder);
   if (metricSortActive) {
     const declineFirst = state.sortOrder === "decline";
@@ -873,16 +909,18 @@ function render() {
     );
   } else {
     const periodLabel = BOLL_PERIOD_META[state.bollPeriod].label;
+    const twoYearSort = state.sortOrder.startsWith("twoYearLow");
+    const distanceLabel = twoYearSort ? "两年低价距离" : `${periodLabel} BOLL 下轨距离`;
     const distanceSortLabel =
-      state.sortOrder === "bollAscending"
-        ? "下轨距离升序（负值在前）"
-        : "下轨距离降序（正值在前）";
+      state.sortOrder.endsWith("Ascending")
+        ? `${distanceLabel}升序（负值在前）`
+        : `${distanceLabel}降序（正值在前）`;
     elements.changeHeader.setAttribute("aria-sort", "none");
     elements.changeSortIcon.textContent = "↕";
-    elements.changeSortButton.title = `当前按${periodLabel} BOLL ${distanceSortLabel}排序，点击改为跌幅优先`;
+    elements.changeSortButton.title = `当前按${distanceSortLabel}排序，点击改为跌幅优先`;
     elements.changeSortButton.setAttribute(
       "aria-label",
-      `${filterMeta.header}，当前列表按${periodLabel} BOLL ${distanceSortLabel}排序，点击改为跌幅优先`,
+      `${filterMeta.header}，当前列表按${distanceSortLabel}排序，点击改为跌幅优先`,
     );
   }
   elements.resultCount.textContent = `${filteredQuotes.length} 只`;
@@ -1187,6 +1225,7 @@ function removeStock(code) {
 function showDeclineShortcut(threshold) {
   state.period = "daily";
   state.threshold = threshold;
+  state.twoYearLowRange = "all";
   state.industry = "all";
   state.bollBand = "all";
   state.searchQuery = "";
@@ -1223,6 +1262,12 @@ elements.thresholdFilter.addEventListener("change", (event) => {
   state.page = 1;
   render();
 });
+elements.twoYearLowFilter.addEventListener("change", (event) => {
+  state.twoYearLowRange = ["all", "below", "5", "10", "20"].includes(event.target.value)
+    ? event.target.value : "all";
+  state.page = 1;
+  render();
+});
 elements.industryFilter.addEventListener("change", (event) => {
   state.industry = event.target.value || "all";
   state.page = 1;
@@ -1253,6 +1298,8 @@ elements.sortOrder.addEventListener("change", (event) => {
     "rise",
     "bollAscending",
     "bollDescending",
+    "twoYearLowAscending",
+    "twoYearLowDescending",
   ].includes(event.target.value)
     ? event.target.value
     : "decline";
