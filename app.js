@@ -184,9 +184,11 @@ const LATEST_ADDED_CODES = [
   "600415",
   "600755",
   "600803",
+  "601006",
   "601083",
   "601107",
   "601717",
+  "605337",
 ];
 
 const DEFAULT_CODES = [
@@ -194,10 +196,11 @@ const DEFAULT_CODES = [
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v12",
+  watchlist: "a-share-dip-watch:watchlist:v13",
   starred: "a-share-dip-watch:starred:v1",
-  previousWatchlist: "a-share-dip-watch:watchlist:v11",
+  previousWatchlist: "a-share-dip-watch:watchlist:v12",
   legacyWatchlists: [
+    "a-share-dip-watch:watchlist:v11",
     "a-share-dip-watch:watchlist:v10",
     "a-share-dip-watch:watchlist:v9",
     "a-share-dip-watch:watchlist:v8",
