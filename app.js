@@ -859,16 +859,21 @@ function sortQuotes(quotes) {
       state.sortOrder === "ma250Ascending" ||
       state.sortOrder === "ma250Descending" ||
       state.sortOrder === "trackPositionAscending" ||
-      state.sortOrder === "trackPositionDescending"
+      state.sortOrder === "trackPositionDescending" ||
+      state.sortOrder === "currentPriceAscending" ||
+      state.sortOrder === "currentPriceDescending"
     ) {
       const twoYearSort = state.sortOrder.startsWith("twoYearLow");
       const ma250Sort = state.sortOrder.startsWith("ma250");
       const trackPositionSort = state.sortOrder.startsWith("trackPosition");
-      const aDistance = trackPositionSort ? a.priceTrackPosition1y
+      const currentPriceSort = state.sortOrder.startsWith("currentPrice");
+      const aDistance = currentPriceSort ? a.price
+        : trackPositionSort ? a.priceTrackPosition1y
         : twoYearSort ? a.twoYearLow.distancePct
         : ma250Sort ? ma250DistancePct(a)
           : getBollLowerRailSignal(a.price, a.bollTracks[state.bollPeriod]?.lower).distancePct;
-      const bDistance = trackPositionSort ? b.priceTrackPosition1y
+      const bDistance = currentPriceSort ? b.price
+        : trackPositionSort ? b.priceTrackPosition1y
         : twoYearSort ? b.twoYearLow.distancePct
         : ma250Sort ? ma250DistancePct(b)
           : getBollLowerRailSignal(b.price, b.bollTracks[state.bollPeriod]?.lower).distancePct;
@@ -1086,13 +1091,17 @@ function render() {
     const twoYearSort = state.sortOrder.startsWith("twoYearLow");
     const ma250Sort = state.sortOrder.startsWith("ma250");
     const trackPositionSort = state.sortOrder.startsWith("trackPosition");
-    const distanceLabel = trackPositionSort ? "近一年位置"
+    const currentPriceSort = state.sortOrder.startsWith("currentPrice");
+    const distanceLabel = currentPriceSort ? "当前股价"
+      : trackPositionSort ? "近一年位置"
       : twoYearSort ? "两年低价距离"
       : ma250Sort ? "MA250 距离"
         : `${periodLabel} BOLL 下轨距离`;
     const ascending = state.sortOrder.endsWith("Ascending");
-    const distanceSortLabel = trackPositionSort
-      ? `${distanceLabel}${ascending ? "升序（低位在前）" : "降序（高位在前）"}`
+    const distanceSortLabel = currentPriceSort
+      ? `${distanceLabel}${ascending ? "升序（低价在前）" : "降序（高价在前）"}`
+      : trackPositionSort
+        ? `${distanceLabel}${ascending ? "升序（低位在前）" : "降序（高位在前）"}`
       : `${distanceLabel}${ascending ? "升序（负值在前）" : "降序（正值在前）"}`;
     elements.changeHeader.setAttribute("aria-sort", "none");
     elements.changeSortIcon.textContent = "↕";
@@ -1537,6 +1546,8 @@ elements.sortOrder.addEventListener("change", (event) => {
     "ma250Descending",
     "trackPositionAscending",
     "trackPositionDescending",
+    "currentPriceAscending",
+    "currentPriceDescending",
   ].includes(event.target.value)
     ? event.target.value
     : "decline";
