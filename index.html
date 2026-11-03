@@ -9,9 +9,9 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=42" />
+    <link rel="stylesheet" href="./styles.css?v=43" />
     <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=44"></script>
+    <script defer src="./app.js?v=45"></script>
   </head>
   <body>
     <header class="app-header">
@@ -220,6 +220,7 @@
                     <span id="changeSortIcon" class="column-sort-icon" aria-hidden="true">↑</span>
                   </button>
                 </th>
+                <th scope="col" class="numeric current-price-column">当前股价</th>
                 <th scope="col" class="numeric current-yield-column">静态股息率</th>
                 <th scope="col" class="action-column">
                   <span class="sr-only">操作</span>
@@ -228,7 +229,7 @@
             </thead>
             <tbody id="stockRows">
               <tr class="loading-row">
-                <td colspan="6">
+                <td colspan="7">
                   <span class="spinner" aria-hidden="true"></span>
                   正在读取行情
                 </td>
