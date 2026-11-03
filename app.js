@@ -185,6 +185,12 @@ const TRASH_ICON = `
   </svg>`;
 
 let toastTimer;
+let quoteRefreshTimer;
+const SNAPSHOT_REFRESH_MS = 15 * 60 * 1000;
+const SHANGHAI_TIME = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
+  hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+});
 
 const elements = {
   addButton: document.querySelector("#addButton"),
@@ -229,6 +235,10 @@ const state = {
   codes: loadWatchlist(),
   market: loadJson(STORAGE_KEYS.market, null),
   loading: false,
+  snapshotLoading: false,
+  snapshotAttemptAt: 0,
+  liveError: "",
+  missingQuotes: 0,
   bollBand: "all",
   bollPeriod: "day",
   industry: "all",
@@ -250,7 +260,11 @@ function loadJson(key, fallback) {
 }
 
 function saveJson(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Quotes remain usable when browser storage is unavailable or full.
+  }
 }
 
 function loadWatchlist() {
@@ -280,20 +294,99 @@ function numberOrNull(value) {
 }
 
 async function fetchMarket() {
-  const response = await fetch(`./data/market.json?v=${Date.now()}`, {
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`行情文件读取失败 (${response.status})`);
-  const data = await response.json();
-  if (!data?.stocks || Object.keys(data.stocks).length !== DEFAULT_CODES.length) {
-    throw new Error("行情文件不完整");
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(`./data/market.json?v=${Date.now()}`, {
+      cache: "no-store", signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`行情文件读取失败 (${response.status})`);
+    const data = await response.json();
+    if (!data?.stocks || !DEFAULT_CODES.every((code) => data.stocks[code])) {
+      throw new Error("行情文件不完整");
+    }
+    return data;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return data;
+}
+
+function stockQuoteTime(stock, market = state.market) {
+  if (!(numberOrNull(stock.price) > 0) || numberOrNull(stock.changePct) === null) return null;
+  // Older snapshots only have a dataset timestamp; new snapshots store each quote's time.
+  const value = Object.hasOwn(stock, "quoteTime") ? stock.quoteTime : market?.quoteTime;
+  const timestamp = value ? Date.parse(value) : NaN;
+  return Number.isFinite(timestamp) && timestamp <= Date.now() + 60000 ? value : null;
+}
+
+function mergeSnapshot(snapshot) {
+  if (!snapshot?.stocks) return;
+  if (Date.parse(snapshot.generatedAt) < Date.parse(state.market?.generatedAt)) return;
+  const stocks = {};
+  for (const code of DEFAULT_CODES) {
+    const incoming = snapshot.stocks[code];
+    if (!incoming) continue;
+    const current = state.market?.stocks?.[code];
+    const incomingTime = stockQuoteTime(incoming, snapshot);
+    const currentTime = current ? stockQuoteTime(current) : null;
+    stocks[code] = { ...incoming, quoteTime: incomingTime, quoteSource: incoming.quoteSource || "snapshot" };
+    // A slow snapshot download must never roll a live quote back to an older price.
+    if (current && Number.isFinite(Date.parse(currentTime)) &&
+        (!Number.isFinite(Date.parse(incomingTime)) || Date.parse(currentTime) >= Date.parse(incomingTime))) {
+      for (const key of ["price", "changePct", "previousClose", "quoteSource"]) {
+        stocks[code][key] = current[key];
+      }
+      stocks[code].quoteTime = currentTime;
+    }
+  }
+  state.market = { ...snapshot, stocks };
+}
+
+async function refreshSnapshot(force = false) {
+  if (state.snapshotLoading || (!force && Date.now() - state.snapshotAttemptAt < SNAPSHOT_REFRESH_MS)) return;
+  state.snapshotLoading = true;
+  state.snapshotAttemptAt = Date.now();
+  try {
+    mergeSnapshot(await fetchMarket());
+    saveJson(STORAGE_KEYS.market, state.market);
+  } catch {
+    // Historical data failures do not block the independent live quote request.
+  } finally {
+    state.snapshotLoading = false;
+    render();
+  }
+}
+
+function priceMetrics(stock) {
+  const price = numberOrNull(stock.price);
+  const base = numberOrNull(stock.threeMonthBaseClose);
+  const low = numberOrNull(stock.priceLow1y);
+  const high = numberOrNull(stock.priceHigh1y);
+  const position = price > 0 && low !== null && high > low
+    ? Math.max(0, Math.min(100, (price - low) / (high - low) * 100)) : null;
+  const bands = stock.bollBands || stock.bollTracks || {};
+  const bollTracks = {};
+  for (const [period, band] of Object.entries(bands)) {
+    const lower = numberOrNull(band.lower);
+    const upper = numberOrNull(band.upper);
+    const middle = numberOrNull(band.middle);
+    if (price <= 0 || price === null || lower === null || middle === null || upper === null || upper <= lower) continue;
+    const positionPct = (price - lower) / (upper - lower) * 100;
+    bollTracks[period] = { lower, upper, middle, positionPct,
+      band: positionPct < 33.3333 ? "lower" : positionPct < 66.6667 ? "middle" : "upper" };
+  }
+  return {
+    threeMonthChangePct: price > 0 && base > 0 ? (price / base - 1) * 100 : null,
+    priceTrackPosition1y: position,
+    priceTrackBand1y: position === null ? null : position < 33.3333 ? "low" : position < 66.6667 ? "middle" : "high",
+    bollTracks,
+  };
 }
 
 function quoteFor(code) {
-  const stock = state.market?.stocks?.[code];
-  if (!stock) return null;
+  const stored = state.market?.stocks?.[code];
+  if (!stored) return null;
+  const stock = { ...stored, ...priceMetrics(stored) };
   return {
     code,
     name: stock.name || code,
@@ -301,6 +394,9 @@ function quoteFor(code) {
     industryDetail: stock.industryDetail || stock.industry || "行业待同步",
     price: numberOrNull(stock.price),
     changePct: numberOrNull(stock.changePct),
+    quoteTime: stockQuoteTime(stored),
+    quoteSource: stock.quoteSource || "snapshot",
+    historyAsOf: stock.historyAsOf || null,
     threeMonthChangePct: numberOrNull(stock.threeMonthChangePct),
     maxDailyDecline3m: numberOrNull(stock.maxDailyDecline3m),
     priceLow1y: numberOrNull(stock.priceLow1y),
@@ -440,6 +536,7 @@ function metricFor(quote) {
 
 function rowTemplate(quote) {
   const changeValue = metricFor(quote);
+  const freshness = quoteStatus(quote.quoteTime);
   const dividendYield =
     Number.isFinite(quote.dividendPerShare) && quote.price > 0
       ? (quote.dividendPerShare / quote.price) * 100
@@ -479,7 +576,8 @@ function rowTemplate(quote) {
         Number.isFinite(bollTrack.upper)
           ? `${periodMeta.label} BOLL(20, 2σ)：${bandMeta.label}区，位置 ${bollTrack.positionPct.toFixed(0)}%，下轨 ${formatBollValue(bollTrack.lower)} / 中轨 ${formatBollValue(bollTrack.middle)} / 上轨 ${formatBollValue(bollTrack.upper)}`
           : `${periodMeta.label} BOLL 暂无数据`;
-      return `<span class="boll-track ${bandMeta?.className || "unknown"}" title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
+      const datedTitle = `${title}；历史数据同步日：${quote.historyAsOf || "未知"}，轨道由历史行情计算`;
+      return `<span class="boll-track ${bandMeta?.className || "unknown"}" title="${escapeHtml(datedTitle)}">${escapeHtml(label)}</span>`;
     })
     .join("");
   const activeBollPeriod = BOLL_PERIOD_META[state.bollPeriod];
@@ -556,6 +654,7 @@ function rowTemplate(quote) {
       </td>
       <td class="numeric change-cell">
         <span class="metric ${declineClass(changeValue)}">${formatPercent(changeValue)}</span>
+        <small class="quote-time ${freshness.stale ? "is-stale" : ""}" title="北京时间；${quote.quoteSource === "live" ? "腾讯行情报价" : "缓存报价"}">${escapeHtml(freshness.text)}</small>
       </td>
       <td class="numeric current-yield-cell">
         <div class="yield-value" title="${escapeHtml(currentYieldTitle)}">${formatPercent(dividendYield)}</div>
@@ -657,6 +756,8 @@ function matchesFilters(quote) {
   }
   if (state.period === "largestDaily") {
     return (
+      quoteStatus(quote.quoteTime).day === shanghaiParts().day &&
+      quote.historyAsOf === shanghaiParts().day &&
       quote.changePct < 0 &&
       Number.isFinite(quote.maxDailyDecline3m) &&
       quote.changePct < quote.maxDailyDecline3m
@@ -667,6 +768,9 @@ function matchesFilters(quote) {
 
 function render() {
   const availableQuotes = state.codes.map(quoteFor).filter(Boolean);
+  const allToday = availableQuotes.length > 0 && availableQuotes.every(
+    (quote) => quoteStatus(quote.quoteTime).day === shanghaiParts().day,
+  );
   renderIndustryOptions(availableQuotes);
   const filteredQuotes = sortQuotes(availableQuotes.filter(matchesFilters));
   const totalPages = Math.max(1, Math.ceil(filteredQuotes.length / state.pageSize));
@@ -686,13 +790,18 @@ function render() {
     elements.stockRows.innerHTML = `
       <tr class="empty-row"><td colspan="5">行情暂不可用</td></tr>`;
   } else if (!filteredQuotes.length) {
+    const waitingForHistory = state.period === "largestDaily" && availableQuotes.some(
+      (quote) => quote.historyAsOf !== shanghaiParts().day,
+    );
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="5">${state.searchQuery.trim() ? "没有找到匹配的股票" : "没有符合筛选条件的股票"}</td></tr>`;
+      <tr class="empty-row"><td colspan="5">${state.searchQuery.trim() ? "没有找到匹配的股票" : waitingForHistory ? "历史指标待同步，暂无法完整判断今日异常" : "没有符合筛选条件的股票"}</td></tr>`;
   } else {
     elements.stockRows.innerHTML = pageQuotes.map(rowTemplate).join("");
   }
 
-  const filterMeta = FILTER_META[state.period];
+  const filterMeta = { ...FILTER_META[state.period] };
+  if (state.period === "daily" && !allToday) filterMeta.title = "行情表现（含历史或待更新数据）";
+  if (state.period === "largestDaily") filterMeta.title = "今日近3月异常（已同步历史数据）";
   elements.watchlistTitle.textContent = filterMeta.title;
   elements.changeHeaderLabel.textContent = filterMeta.header;
   elements.bollBandFilter.value = state.bollBand;
@@ -743,6 +852,7 @@ function render() {
     availableQuotes.filter((quote) => quote.changePct <= -3).length,
   );
   renderStockSuggestions();
+  renderMarketStatus(availableQuotes);
 }
 
 function normalizeStockSearch(value) {
@@ -842,49 +952,107 @@ function renderStockSuggestions(query = elements.stockQuery.value) {
   elements.stockQuery.setAttribute("aria-expanded", "true");
 }
 
-function formatTime(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "--";
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
+function shanghaiParts(value = new Date()) {
+  const parts = Object.fromEntries(SHANGHAI_TIME.formatToParts(value).map((part) => [part.type, part.value]));
+  return { ...parts, day: `${parts.year}-${parts.month}-${parts.day}`,
+    minutes: Number(parts.hour) * 60 + Number(parts.minute) };
 }
 
-async function refresh() {
+function isQuoteSession(now = new Date()) {
+  const parts = shanghaiParts(now);
+  // Use the Shanghai calendar day (UTC midnight), not the user's local weekday.
+  const shanghaiWeekday = new Date(`${parts.day}T00:00:00Z`).getUTCDay();
+  return shanghaiWeekday >= 1 && shanghaiWeekday <= 5 &&
+    ((parts.minutes >= 555 && parts.minutes <= 690) ||
+     (parts.minutes >= 780 && parts.minutes <= 900));
+}
+
+function quoteStatus(value, now = new Date()) {
+  const timestamp = value ? Date.parse(value) : NaN;
+  if (!Number.isFinite(timestamp) || timestamp > now.getTime() + 60000) {
+    return { text: "行情时间未知", day: null, stale: true, timestamp: null };
+  }
+  const quote = shanghaiParts(new Date(timestamp));
+  const today = shanghaiParts(now);
+  const yesterday = shanghaiParts(new Date(now.getTime() - 86400000)).day;
+  const clock = `${quote.month}/${quote.day.slice(-2)} ${quote.hour}:${quote.minute}`;
+  if (quote.day === today.day) {
+    const auction = quote.minutes >= 555 && quote.minutes < 565;
+    const auctionComplete = today.minutes >= 565 && today.minutes < 570 && quote.minutes >= 565;
+    const stale = isQuoteSession(now) && !auctionComplete && now.getTime() - timestamp > 120000;
+    const label = auction ? (stale ? "集合竞价参考（延迟）" : "集合竞价参考") : stale ? "今日行情（延迟）" : "今日行情";
+    return { text: `${label} · ${clock}:${quote.second}`, day: quote.day, stale, timestamp };
+  }
+  const label = quote.day === yesterday ? "昨日行情" : "历史行情";
+  const dateLabel = quote.year === today.year ? clock : `${quote.year}/${clock}`;
+  return { text: `${label} · ${dateLabel}`, day: quote.day, stale: true, timestamp };
+}
+
+function renderMarketStatus(quotes) {
+  const statuses = quotes.map((quote) => quoteStatus(quote.quoteTime));
+  const valid = statuses.filter((status) => status.timestamp !== null);
+  const days = new Set(statuses.map((status) => status.day));
+  if (!valid.length) {
+    elements.updatedAt.textContent = "行情时间未知";
+  } else if (days.size > 1) {
+    elements.updatedAt.textContent = "混合日期 · 详见各股行情时间";
+  } else {
+    elements.updatedAt.textContent = valid.reduce((oldest, item) => item.timestamp < oldest.timestamp ? item : oldest).text;
+  }
+  const staleCount = statuses.filter((status) => status.stale).length;
+  elements.updatedAt.classList.toggle("is-stale", staleCount > 0);
+  if (!quotes.length) {
+    elements.marketStatus.textContent = state.loading ? "正在获取行情" : "行情暂不可用，稍后自动重试";
+    return;
+  }
+  const cadence = document.hidden ? "后台已暂停刷新" : isQuoteSession() ? "每15秒自动刷新" : "每60秒自动刷新";
+  const parts = [state.liveError ? "实时行情获取失败，保留最近报价" : cadence];
+  if (state.missingQuotes) parts.push(`${state.missingQuotes}只报价未更新`);
+  if (staleCount) parts.push(`${staleCount}只为历史、延迟或时间未知行情`);
+  const historyPending = quotes.filter((quote) => quoteStatus(quote.quoteTime).day === shanghaiParts().day && quote.historyAsOf !== shanghaiParts().day).length;
+  if (historyPending) parts.push(`${historyPending}只历史指标待同步，暂不参与今日异常筛选`);
+  elements.marketStatus.textContent = parts.join(" · ");
+}
+
+function scheduleQuoteRefresh() {
+  window.clearTimeout(quoteRefreshTimer);
+  if (document.hidden) return;
+  quoteRefreshTimer = window.setTimeout(() => refresh({ automatic: true }), isQuoteSession() ? 15000 : 60000);
+}
+
+async function refresh({ automatic = false } = {}) {
   if (state.loading) return;
+  window.clearTimeout(quoteRefreshTimer);
   state.loading = true;
   elements.refreshButton.disabled = true;
-  elements.refreshButton.classList.add("is-spinning");
-  elements.marketStatus.textContent = "正在刷新行情";
-  render();
+  if (!automatic) elements.refreshButton.classList.add("is-spinning");
+  void refreshSnapshot(!automatic);
 
   try {
-    state.market = await fetchMarket();
-    saveJson(STORAGE_KEYS.market, state.market);
-    elements.updatedAt.textContent = formatTime(
-      state.market.quoteTime || state.market.generatedAt,
-    );
-    elements.marketStatus.textContent = "行情已更新 · 可按当日或近3月筛选";
-  } catch (error) {
-    if (state.market?.stocks) {
-      elements.updatedAt.textContent = formatTime(
-        state.market.quoteTime || state.market.generatedAt,
-      );
-      elements.marketStatus.textContent = "更新失败，显示上次数据";
-    } else {
-      elements.updatedAt.textContent = "--";
-      elements.marketStatus.textContent = "行情暂不可用";
+    const result = await LiveMarket.fetchQuotes(DEFAULT_CODES);
+    const stocks = { ...state.market?.stocks };
+    let olderQuotes = 0;
+    for (const [code, quote] of Object.entries(result.quotes)) {
+      const oldTime = stocks[code] ? Date.parse(stockQuoteTime(stocks[code])) : NaN;
+      if (Number.isFinite(oldTime) && oldTime <= Date.now() + 60000 && oldTime > Date.parse(quote.quoteTime)) {
+        olderQuotes += 1;
+        continue;
+      }
+      stocks[code] = { ...stocks[code], ...quote };
     }
-    showToast(error.message || "行情更新失败");
+    state.market = { ...state.market, stocks };
+    state.liveError = "";
+    state.missingQuotes = result.failedCount + olderQuotes;
+    saveJson(STORAGE_KEYS.market, state.market);
+  } catch (error) {
+    state.liveError = error.message || "行情更新失败";
+    if (!automatic) showToast(state.liveError);
   } finally {
     state.loading = false;
     elements.refreshButton.disabled = false;
     elements.refreshButton.classList.remove("is-spinning");
     render();
+    scheduleQuoteRefresh();
   }
 }
 
@@ -1090,4 +1258,15 @@ window.addEventListener("DOMContentLoaded", () => {
   state.codes = [...new Set(state.codes.filter((code) => /^\d{6}$/.test(code)))];
   render();
   refresh();
+});
+
+document.addEventListener("visibilitychange", () => {
+  window.clearTimeout(quoteRefreshTimer);
+  if (document.hidden) renderMarketStatus(state.codes.map(quoteFor).filter(Boolean));
+  else refresh({ automatic: true });
+});
+
+window.addEventListener("pagehide", () => window.clearTimeout(quoteRefreshTimer));
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted && !document.hidden) refresh({ automatic: true });
 });

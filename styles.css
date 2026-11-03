@@ -244,7 +244,23 @@ button:disabled {
 .summary-strip .summary-time strong {
   font-size: 14px;
   font-weight: 650;
-  white-space: nowrap;
+  white-space: normal;
+}
+
+.quote-time {
+  display: block;
+  max-width: 220px;
+  margin-top: 6px;
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: normal;
+}
+
+.quote-time.is-stale,
+.summary-strip .summary-time strong.is-stale {
+  color: #946317;
 }
 
 .watchlist-section {

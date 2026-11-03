@@ -114,6 +114,8 @@ def fetch_quotes(
             "industryDetail": item["industryDetail"] or item["industry"],
             "price": None,
             "changePct": None,
+            "quoteTime": None,
+            "quoteSource": "snapshot",
         }
         for item in universe
     }
@@ -136,6 +138,7 @@ def fetch_quotes(
                 continue
             price = number_or_none(fields[3])
             change_pct = number_or_none(fields[32])
+            quote_time = None
             try:
                 quote_time = datetime.strptime(fields[30], "%Y%m%d%H%M%S").replace(
                     tzinfo=ZoneInfo("Asia/Shanghai")
@@ -149,6 +152,8 @@ def fetch_quotes(
                 "industryDetail": stocks[code]["industryDetail"],
                 "price": price,
                 "changePct": change_pct,
+                "quoteTime": quote_time.isoformat() if quote_time else None,
+                "quoteSource": "snapshot",
             }
             quoted_codes.add(code)
         completed = min(offset + chunk_size, len(codes))
