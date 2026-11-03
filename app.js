@@ -145,6 +145,7 @@ const DEFAULT_CODES = [
 
 const STORAGE_KEYS = {
   watchlist: "a-share-dip-watch:watchlist:v9",
+  starred: "a-share-dip-watch:starred:v1",
   previousWatchlist: "a-share-dip-watch:watchlist:v8",
   legacyWatchlists: [
     "a-share-dip-watch:watchlist:v7",
@@ -186,6 +187,11 @@ const TRASH_ICON = `
     <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v5" /><path d="M14 11v5" />
   </svg>`;
 
+const STAR_ICON = `
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m12 2.7 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3.1-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9Z" />
+  </svg>`;
+
 let toastTimer;
 let quoteRefreshTimer;
 const SNAPSHOT_REFRESH_MS = 15 * 60 * 1000;
@@ -223,6 +229,8 @@ const elements = {
   sortOrder: document.querySelector("#sortOrder"),
   stockCount: document.querySelector("#stockCount"),
   stockListSearch: document.querySelector("#stockListSearch"),
+  starredFilterCount: document.querySelector("#starredFilterCount"),
+  starredOnlyFilter: document.querySelector("#starredOnlyFilter"),
   stockQuery: document.querySelector("#stockQuery"),
   stockRows: document.querySelector("#stockRows"),
   stockSuggestionPanel: document.querySelector("#stockSuggestionPanel"),
@@ -252,6 +260,8 @@ const state = {
   pageSize: 50,
   searchQuery: "",
   sortOrder: "decline",
+  starredCodes: loadStarredCodes(),
+  starredOnly: false,
 };
 
 function loadJson(key, fallback) {
@@ -269,6 +279,16 @@ function saveJson(key, value) {
   } catch {
     // Quotes remain usable when browser storage is unavailable or full.
   }
+}
+
+function loadStarredCodes() {
+  const saved = loadJson(STORAGE_KEYS.starred, []);
+  if (!Array.isArray(saved)) return new Set();
+  return new Set(saved.filter((code) => /^\d{6}$/.test(code)));
+}
+
+function saveStarredCodes() {
+  saveJson(STORAGE_KEYS.starred, [...state.starredCodes].sort());
 }
 
 function loadWatchlist() {
@@ -691,6 +711,7 @@ function rowTemplate(quote) {
     })
     .join("");
   const quoteUrl = stockQuoteUrl(quote.code);
+  const isStarred = state.starredCodes.has(quote.code);
   const annualLowAsOf = quote.recentAnnualLowPrices3y.find((item) => item.current)?.asOf;
   const twoYearLow = quote.twoYearLow;
   const twoYearLowTitle = `${twoYearLow.yearsLabel}（今年+去年）的不复权最低价；当前年截至 ${annualLowAsOf || "未知"}；（当前价 ÷ 两年最低价 − 1）× 100%；升序按负值到正值排列，不取绝对值${twoYearLow.price === null ? "；两年历史数据不足" : ""}`;
@@ -702,6 +723,7 @@ function rowTemplate(quote) {
             <span class="stock-link-label">${escapeHtml(quote.name)}</span>
             <span class="external-link-mark" aria-hidden="true">↗</span>
           </a>
+          <button class="stock-star${isStarred ? " is-starred" : ""}" type="button" data-toggle-star="${escapeHtml(quote.code)}" title="${isStarred ? "取消关注" : "关注"} ${escapeHtml(quote.name)}" aria-label="${isStarred ? "取消关注" : "关注"} ${escapeHtml(quote.name)}" aria-pressed="${isStarred}">${STAR_ICON}</button>
         </div>
         <div class="stock-meta">
           <span class="stock-code">${escapeHtml(quote.code)}</span>
@@ -813,6 +835,7 @@ function renderIndustryOptions(quotes) {
 }
 
 function matchesFilters(quote) {
+  if (state.starredOnly && !state.starredCodes.has(quote.code)) return false;
   const searchQuery = normalizeStockSearch(state.searchQuery);
   if (searchQuery) {
     const searchScore = Math.min(
@@ -883,8 +906,15 @@ function render() {
     const waitingForHistory = state.period === "largestDaily" && availableQuotes.some(
       (quote) => quote.historyAsOf !== shanghaiParts().day,
     );
+    const emptyMessage = state.searchQuery.trim()
+      ? "没有找到匹配的股票"
+      : state.starredOnly
+        ? "暂无符合当前条件的星标股票"
+        : waitingForHistory
+          ? "历史指标待同步，暂无法完整判断今日异常"
+          : "没有符合筛选条件的股票";
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="6">${state.searchQuery.trim() ? "没有找到匹配的股票" : waitingForHistory ? "历史指标待同步，暂无法完整判断今日异常" : "没有符合筛选条件的股票"}</td></tr>`;
+      <tr class="empty-row"><td colspan="6">${emptyMessage}</td></tr>`;
   } else {
     elements.stockRows.innerHTML = pageQuotes.map(rowTemplate).join("");
   }
@@ -900,6 +930,7 @@ function render() {
   elements.sortOrder.value = state.sortOrder;
   elements.thresholdFilter.value = String(state.threshold);
   elements.twoYearLowFilter.value = state.twoYearLowRange;
+  elements.starredOnlyFilter.checked = state.starredOnly;
   const metricSortActive = ["decline", "rise"].includes(state.sortOrder);
   if (metricSortActive) {
     const declineFirst = state.sortOrder === "decline";
@@ -934,6 +965,9 @@ function render() {
     );
   }
   elements.resultCount.textContent = `${filteredQuotes.length} 只`;
+  elements.starredFilterCount.textContent = String(
+    state.codes.filter((code) => state.starredCodes.has(code)).length,
+  );
   elements.pageStatus.textContent = `第 ${state.page} / ${totalPages} 页`;
   elements.previousPageButton.disabled = state.page <= 1;
   elements.nextPageButton.disabled = state.page >= totalPages;
@@ -1224,6 +1258,7 @@ function addStock(event) {
 function removeStock(code) {
   const quote = quoteFor(code);
   state.codes = state.codes.filter((item) => item !== code);
+  if (state.starredCodes.delete(code)) saveStarredCodes();
   saveJson(STORAGE_KEYS.watchlist, state.codes);
   render();
   showToast(`已移除 ${quote?.name || code}`);
@@ -1232,12 +1267,25 @@ function removeStock(code) {
   }
 }
 
+function toggleStar(code) {
+  const quote = quoteFor(code);
+  if (!state.codes.includes(code)) return;
+  const wasStarred = state.starredCodes.has(code);
+  if (wasStarred) state.starredCodes.delete(code);
+  else state.starredCodes.add(code);
+  saveStarredCodes();
+  state.page = 1;
+  render();
+  showToast(`${wasStarred ? "已取消关注" : "已关注"} ${quote?.name || code}`);
+}
+
 function showDeclineShortcut(threshold) {
   state.period = "daily";
   state.threshold = threshold;
   state.twoYearLowRange = "all";
   state.industry = "all";
   state.bollBand = "all";
+  state.starredOnly = false;
   state.searchQuery = "";
   state.sortOrder = "decline";
   state.page = 1;
@@ -1288,6 +1336,11 @@ elements.stockListSearch.addEventListener("input", (event) => {
   state.page = 1;
   render();
 });
+elements.starredOnlyFilter.addEventListener("change", (event) => {
+  state.starredOnly = event.target.checked;
+  state.page = 1;
+  render();
+});
 elements.bollPeriodFilter.addEventListener("change", (event) => {
   state.bollPeriod = BOLL_PERIOD_META[event.target.value]
     ? event.target.value
@@ -1335,8 +1388,13 @@ elements.nextPageButton.addEventListener("click", () => {
   render();
 });
 elements.stockRows.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-remove]");
-  if (button) removeStock(button.dataset.remove);
+  const starButton = event.target.closest("[data-toggle-star]");
+  if (starButton) {
+    toggleStar(starButton.dataset.toggleStar);
+    return;
+  }
+  const removeButton = event.target.closest("[data-remove]");
+  if (removeButton) removeStock(removeButton.dataset.remove);
 });
 elements.addDialog.addEventListener("click", (event) => {
   if (event.target === elements.addDialog) closeAddDialog();

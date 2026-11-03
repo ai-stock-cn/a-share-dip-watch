@@ -362,6 +362,56 @@ button:disabled {
   min-width: 92px;
 }
 
+.star-filter-control {
+  height: 38px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-muted);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.star-filter-control:hover {
+  color: var(--ink);
+  border-color: #b39a5a;
+}
+
+.star-filter-control input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.star-filter-control svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  stroke-width: 1.8;
+}
+
+.star-filter-control input:checked + svg {
+  color: #8a641b;
+  fill: #d6ad55;
+}
+
+.star-filter-control strong {
+  min-width: 18px;
+  padding: 1px 5px;
+  color: var(--ink);
+  background: var(--neutral-soft);
+  border-radius: 8px;
+  text-align: center;
+}
+
 .stock-search-control {
   position: relative;
   display: flex;
@@ -579,6 +629,9 @@ td.numeric {
 }
 
 .stock-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   overflow: hidden;
   color: var(--ink);
   font-size: 15px;
@@ -589,12 +642,44 @@ td.numeric {
 }
 
 .stock-name-link {
+  min-width: 0;
   max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   color: inherit;
   text-decoration: none;
+}
+
+.stock-star {
+  width: 25px;
+  height: 25px;
+  padding: 3px;
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.stock-star svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.8;
+}
+
+.stock-star:hover {
+  color: #8a641b;
+  background: #faf4e4;
+}
+
+.stock-star.is-starred {
+  color: #8a641b;
+}
+
+.stock-star.is-starred svg {
+  fill: #d6ad55;
 }
 
 .stock-name-link:hover {
@@ -1197,6 +1282,11 @@ noscript {
 
   .filter-group .stock-search-field {
     grid-column: 1 / -1;
+  }
+
+  .filter-group .star-filter-control {
+    grid-column: 1 / -1;
+    justify-content: center;
   }
 
   .filter-group .sort-order-field,
