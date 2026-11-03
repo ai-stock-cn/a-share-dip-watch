@@ -9,9 +9,9 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=39" />
+    <link rel="stylesheet" href="./styles.css?v=40" />
     <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=42"></script>
+    <script defer src="./app.js?v=43"></script>
   </head>
   <body>
     <header class="app-header">
@@ -133,6 +133,8 @@
                 <option value="bollDescending">下轨距离降序</option>
                 <option value="twoYearLowAscending">两年低价距离 ↑</option>
                 <option value="twoYearLowDescending">两年低价距离 ↓</option>
+                <option value="ma250Ascending">MA250 距离升序</option>
+                <option value="ma250Descending">MA250 距离降序</option>
               </select>
             </label>
             <label class="control-field two-year-low-filter-field" for="twoYearLowFilter" title="今年+去年两年的最低价；与其他筛选条件同时生效，数据不足时不纳入距离筛选">
@@ -143,6 +145,14 @@
                 <option value="5">0～+5%</option>
                 <option value="10">0～+10%</option>
                 <option value="20">0～+20%</option>
+              </select>
+            </label>
+            <label class="control-field ma250-filter-field" for="ma250Filter" title="当前股价相对 MA250 年线的位置；与其他筛选条件同时生效">
+              <span>年线位置</span>
+              <select id="ma250Filter">
+                <option value="all">全部位置</option>
+                <option value="above">股价在年线上</option>
+                <option value="below">股价在年线下</option>
               </select>
             </label>
             <label class="control-field" for="industryFilter">

@@ -208,7 +208,7 @@ const STORAGE_KEYS = {
     "a-share-dip-watch:watchlist:v3",
     "a-share-dip-watch:watchlist:v2",
   ],
-  market: "a-share-dip-watch:market:v13",
+  market: "a-share-dip-watch:market:v14",
 };
 
 const FILTER_META = {
@@ -272,6 +272,7 @@ const elements = {
   enterpriseNatureFilter: document.querySelector("#enterpriseNatureFilter"),
   formError: document.querySelector("#formError"),
   industryFilter: document.querySelector("#industryFilter"),
+  ma250Filter: document.querySelector("#ma250Filter"),
   marketStatus: document.querySelector("#marketStatus"),
   nextPageButton: document.querySelector("#nextPageButton"),
   pageSizeSelect: document.querySelector("#pageSizeSelect"),
@@ -308,6 +309,7 @@ const state = {
   bollPeriod: "day",
   enterpriseNature: "all",
   industry: "all",
+  ma250Position: "all",
   period: "daily",
   threshold: 0,
   twoYearLowRange: "all",
@@ -492,6 +494,7 @@ function quoteFor(code) {
     priceHigh1y: numberOrNull(stock.priceHigh1y),
     priceTrackPosition1y: numberOrNull(stock.priceTrackPosition1y),
     priceTrackBand1y: stock.priceTrackBand1y || null,
+    ma250: numberOrNull(stock.ma250),
     bollTracks: Object.fromEntries(
       Object.entries(stock.bollTracks || {}).map(([period, track]) => [
         period,
@@ -611,6 +614,13 @@ function formatBollPercent(value) {
   if (!Number.isFinite(value)) return "--";
   const prefix = value > 0 ? "+" : "";
   return `${prefix}${value.toFixed(3)}%`;
+}
+
+function ma250DistancePct(quote) {
+  if (!Number.isFinite(quote.price) || !Number.isFinite(quote.ma250) || quote.ma250 <= 0) {
+    return null;
+  }
+  return ((quote.price - quote.ma250) / quote.ma250) * 100;
 }
 
 function getBollLowerRailSignal(price, lowerRail) {
@@ -734,6 +744,14 @@ function rowTemplate(quote) {
     Number.isFinite(quote.price)
       ? `${activeBollPeriod.label} BOLL 下轨距离：(现价 ${formatPrice(quote.price)} - 下轨 ${formatBollPrice(activeBollTrack.lower)}) ÷ 下轨 ${formatBollPrice(activeBollTrack.lower)} = ${formatBollPercent(activeLowerRailSignal.distancePct)}`
       : `${activeBollPeriod.label} BOLL 下轨距离暂无数据`;
+  const dailyBollTrack = quote.bollTracks.day;
+  const ma250Distance = ma250DistancePct(quote);
+  const ma250PositionClass = Number.isFinite(ma250Distance)
+    ? ma250Distance >= 0 ? "above" : "below"
+    : "unknown";
+  const ma250Title = Number.isFinite(ma250Distance)
+    ? `MA250（最近 250 个交易日前复权收盘价均值）：(现价 ${formatPrice(quote.price)} - 年线 ${formatBollPrice(quote.ma250)}) ÷ 年线 ${formatBollPrice(quote.ma250)} = ${formatBollPercent(ma250Distance)}；按带正负号的原始值筛选和排序，不取绝对值`
+    : "MA250 暂无数据";
   const historicalYieldText = Number.isFinite(
     quote.historicalMaxDividendYield10y,
   )
@@ -792,6 +810,12 @@ function rowTemplate(quote) {
           <span>${escapeHtml(activeLowerRailSignal.label)}</span>
           <small>${escapeHtml(activeBollPeriod.shortLabel)}线下轨 ${escapeHtml(formatBollPrice(activeBollTrack?.lower))}</small>
         </div>
+        <div class="technical-price-levels" aria-label="日线 BOLL 与 MA250 技术价位">
+          <span title="日线 BOLL 下轨">日下 <strong>${escapeHtml(formatBollPrice(dailyBollTrack?.lower))}</strong></span>
+          <span title="日线 BOLL 中轨">日中 <strong>${escapeHtml(formatBollPrice(dailyBollTrack?.middle))}</strong></span>
+          <span title="日线 BOLL 上轨">日上 <strong>${escapeHtml(formatBollPrice(dailyBollTrack?.upper))}</strong></span>
+          <span class="ma250-level ${ma250PositionClass}" title="${escapeHtml(ma250Title)}">MA250 <strong>${escapeHtml(formatBollPrice(quote.ma250))}</strong> · 距年线 <strong>${escapeHtml(formatBollPercent(ma250Distance))}</strong></span>
+        </div>
       </td>
       <td class="history-yield-cell">
         <div class="metric-note history-yield-note">
@@ -828,17 +852,18 @@ function sortQuotes(quotes) {
       state.sortOrder === "bollAscending" ||
       state.sortOrder === "bollDescending" ||
       state.sortOrder === "twoYearLowAscending" ||
-      state.sortOrder === "twoYearLowDescending"
+      state.sortOrder === "twoYearLowDescending" ||
+      state.sortOrder === "ma250Ascending" ||
+      state.sortOrder === "ma250Descending"
     ) {
       const twoYearSort = state.sortOrder.startsWith("twoYearLow");
-      const aDistance = twoYearSort ? a.twoYearLow.distancePct : getBollLowerRailSignal(
-        a.price,
-        a.bollTracks[state.bollPeriod]?.lower,
-      ).distancePct;
-      const bDistance = twoYearSort ? b.twoYearLow.distancePct : getBollLowerRailSignal(
-        b.price,
-        b.bollTracks[state.bollPeriod]?.lower,
-      ).distancePct;
+      const ma250Sort = state.sortOrder.startsWith("ma250");
+      const aDistance = twoYearSort ? a.twoYearLow.distancePct
+        : ma250Sort ? ma250DistancePct(a)
+          : getBollLowerRailSignal(a.price, a.bollTracks[state.bollPeriod]?.lower).distancePct;
+      const bDistance = twoYearSort ? b.twoYearLow.distancePct
+        : ma250Sort ? ma250DistancePct(b)
+          : getBollLowerRailSignal(b.price, b.bollTracks[state.bollPeriod]?.lower).distancePct;
       const aValid = Number.isFinite(aDistance);
       const bValid = Number.isFinite(bDistance);
       if (!aValid || !bValid) {
@@ -943,6 +968,12 @@ function matchesFilters(quote) {
     return false;
   }
   if (state.threshold > 0 && metric > -state.threshold) return false;
+  if (state.ma250Position !== "all") {
+    const distance = ma250DistancePct(quote);
+    if (!Number.isFinite(distance)) return false;
+    if (state.ma250Position === "above" && distance < 0) return false;
+    if (state.ma250Position === "below" && distance >= 0) return false;
+  }
   if (state.twoYearLowRange !== "all") {
     const distance = quote.twoYearLow.distancePct;
     if (!Number.isFinite(distance)) return false;
@@ -1023,6 +1054,7 @@ function render() {
   elements.sortOrder.value = state.sortOrder;
   elements.thresholdFilter.value = String(state.threshold);
   elements.twoYearLowFilter.value = state.twoYearLowRange;
+  elements.ma250Filter.value = state.ma250Position;
   elements.starredOnlyFilter.checked = state.starredOnly;
   const metricSortActive = ["decline", "rise"].includes(state.sortOrder);
   if (metricSortActive) {
@@ -1044,7 +1076,10 @@ function render() {
   } else {
     const periodLabel = BOLL_PERIOD_META[state.bollPeriod].label;
     const twoYearSort = state.sortOrder.startsWith("twoYearLow");
-    const distanceLabel = twoYearSort ? "两年低价距离" : `${periodLabel} BOLL 下轨距离`;
+    const ma250Sort = state.sortOrder.startsWith("ma250");
+    const distanceLabel = twoYearSort ? "两年低价距离"
+      : ma250Sort ? "MA250 距离"
+        : `${periodLabel} BOLL 下轨距离`;
     const distanceSortLabel =
       state.sortOrder.endsWith("Ascending")
         ? `${distanceLabel}升序（负值在前）`
@@ -1376,6 +1411,7 @@ function showDeclineShortcut(threshold) {
   state.period = "daily";
   state.threshold = threshold;
   state.twoYearLowRange = "all";
+  state.ma250Position = "all";
   state.industry = "all";
   state.enterpriseNature = "all";
   state.bollBand = "all";
@@ -1416,6 +1452,12 @@ elements.thresholdFilter.addEventListener("change", (event) => {
 });
 elements.twoYearLowFilter.addEventListener("change", (event) => {
   state.twoYearLowRange = ["all", "below", "5", "10", "20"].includes(event.target.value)
+    ? event.target.value : "all";
+  state.page = 1;
+  render();
+});
+elements.ma250Filter.addEventListener("change", (event) => {
+  state.ma250Position = ["all", "above", "below"].includes(event.target.value)
     ? event.target.value : "all";
   state.page = 1;
   render();
@@ -1462,6 +1504,8 @@ elements.sortOrder.addEventListener("change", (event) => {
     "bollDescending",
     "twoYearLowAscending",
     "twoYearLowDescending",
+    "ma250Ascending",
+    "ma250Descending",
   ].includes(event.target.value)
     ? event.target.value
     : "decline";

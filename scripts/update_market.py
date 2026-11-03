@@ -33,6 +33,7 @@ WEEKLY_HISTORY_LIMIT = 600
 HISTORICAL_DIVIDEND_YEARS = 10
 BOLL_PERIOD = 20
 BOLL_STD_MULTIPLIER = 2
+MA250_PERIOD = 250
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 RECENT_ANNUAL_LOW_BASIS = "unadjusted_daily_low_v1"
 RECENT_ANNUAL_LOW_HISTORY_LIMIT = 1023
@@ -306,6 +307,7 @@ def fetch_three_month_metrics(
             "priceTrackBand1y": price_track_band,
             "bollBands": boll_bands,
             "bollTracks": boll_tracks,
+            "ma250": number_or_none(history.get("ma250")),
             "annualLowPrices10y": history.get("annualLowPrices10y") or {},
             "historyAsOf": history["historyAsOf"],
         }
@@ -379,6 +381,7 @@ def load_history_inputs_from_cache(
             price_high = number_or_none(stock.get("priceHigh1y"))
             annual_lows = stock.get("annualLowPrices10y")
             boll_bands = normalize_boll_bands(stock.get("bollBands"))
+            ma250 = number_or_none(stock.get("ma250"))
             if (
                 stock.get("historyAsOf") != quote_day
                 or baseline is None
@@ -387,6 +390,7 @@ def load_history_inputs_from_cache(
                 or not isinstance(annual_lows, dict)
                 or not annual_lows
                 or boll_bands is None
+                or ma250 is None
             ):
                 continue
             cached[code] = {
@@ -397,6 +401,7 @@ def load_history_inputs_from_cache(
                 "priceLow1y": price_low,
                 "priceHigh1y": price_high,
                 "bollBands": boll_bands,
+                "ma250": ma250,
                 "annualLowPrices10y": {
                     str(year): float(value)
                     for year, value in annual_lows.items()
@@ -754,6 +759,9 @@ def history_input_from_closes(
     boll_bands = calculate_boll_bands(closes)
     if len(boll_bands) != 3:
         raise RuntimeError("insufficient BOLL history rows")
+    if len(closes) < MA250_PERIOD:
+        raise RuntimeError("insufficient MA250 history rows")
+    ma250 = fmean(close for _, close in closes[-MA250_PERIOD:])
     return {
         "threeMonthBaseClose": period_rows[0][1],
         "maxDailyDecline3m": (
@@ -762,6 +770,7 @@ def history_input_from_closes(
         "priceLow1y": round(min(close for _, close in one_year_rows), 4),
         "priceHigh1y": round(max(close for _, close in one_year_rows), 4),
         "bollBands": boll_bands,
+        "ma250": round(ma250, 4),
         "annualLowPrices10y": annual_lows,
         "historyAsOf": quote_day.isoformat(),
     }
