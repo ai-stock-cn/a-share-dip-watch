@@ -827,37 +827,41 @@ td.numeric {
   opacity: 0.65;
 }
 
-.boll-lower-distance {
-  display: flex;
+.boll-rail-distance {
+  display: grid;
   min-width: 0;
-  align-items: baseline;
-  gap: 8px;
+  gap: 2px;
   margin-top: 5px;
   color: var(--ink-muted);
   font-size: 12px;
   line-height: 1.4;
-  white-space: nowrap;
 }
 
-.boll-lower-distance span {
+.boll-rail-distance span {
   font-weight: 700;
+  white-space: normal;
 }
 
-.boll-lower-distance small {
+.boll-rail-distance small {
   color: var(--ink-muted);
   font-size: 11px;
   opacity: 0.86;
+  white-space: normal;
 }
 
-.boll-lower-distance.near {
+.boll-rail-distance.near {
   color: var(--moderate);
 }
 
-.boll-lower-distance.below {
+.boll-rail-distance.below {
   color: var(--severe);
 }
 
-.boll-lower-distance.unknown {
+.boll-rail-distance.above {
+  color: var(--positive);
+}
+
+.boll-rail-distance.unknown {
   opacity: 0.65;
 }
 

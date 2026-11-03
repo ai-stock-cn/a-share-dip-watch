@@ -660,6 +660,46 @@ function getBollLowerRailSignal(price, lowerRail) {
   };
 }
 
+function getBollAdjacentRailSignal(price, track) {
+  const lower = numberOrNull(track?.lower);
+  const middle = numberOrNull(track?.middle);
+  const upper = numberOrNull(track?.upper);
+  const validTrack = Number.isFinite(price) && price > 0 &&
+    lower > 0 && middle > 0 && upper > 0 &&
+    lower <= middle && middle <= upper;
+  if (!validTrack) {
+    return { status: "unknown", items: [] };
+  }
+
+  let railKeys;
+  if (price < lower) railKeys = ["lower"];
+  else if (price > upper) railKeys = ["upper"];
+  else if (price < middle) railKeys = ["lower", "middle"];
+  else if (price > middle) railKeys = ["middle", "upper"];
+  else railKeys = ["middle"];
+
+  const items = railKeys.map((key) => {
+    const railPrice = { lower, middle, upper }[key];
+    return {
+      key,
+      label: BOLL_BAND_META[key].label,
+      railPrice,
+      distancePct: ((price - railPrice) / railPrice) * 100,
+    };
+  });
+  const nearestDistance = Math.min(
+    ...items.map((item) => Math.abs(item.distancePct)),
+  );
+  const status = price < lower
+    ? "below"
+    : price > upper
+      ? "above"
+      : nearestDistance <= 2
+        ? "near"
+        : "normal";
+  return { status, items };
+}
+
 function declineClass(changePct) {
   if (!Number.isFinite(changePct)) return "flat";
   if (changePct <= -5) return "severe";
@@ -738,16 +778,25 @@ function rowTemplate(quote) {
     .join("");
   const activeBollPeriod = BOLL_PERIOD_META[state.bollPeriod];
   const activeBollTrack = quote.bollTracks[state.bollPeriod];
-  const activeLowerRailSignal = getBollLowerRailSignal(
+  const activeRailSignal = getBollAdjacentRailSignal(
     quote.price,
-    activeBollTrack?.lower,
+    activeBollTrack,
   );
-  const activeLowerRailTitle =
-    Number.isFinite(activeLowerRailSignal.distancePct) &&
-    Number.isFinite(activeBollTrack?.lower) &&
-    Number.isFinite(quote.price)
-      ? `${activeBollPeriod.label} BOLL 下轨距离：(现价 ${formatPrice(quote.price)} - 下轨 ${formatBollPrice(activeBollTrack.lower)}) ÷ 下轨 ${formatBollPrice(activeBollTrack.lower)} = ${formatBollPercent(activeLowerRailSignal.distancePct)}`
-      : `${activeBollPeriod.label} BOLL 下轨距离暂无数据`;
+  const activeRailDistanceText = activeRailSignal.items.length
+    ? activeRailSignal.items
+      .map((item) => `距${item.label} ${formatBollPercent(item.distancePct)}`)
+      .join(" / ")
+    : "轨道距离 --";
+  const activeRailPriceText = activeRailSignal.items.length
+    ? activeRailSignal.items
+      .map((item) => `${item.label} ${formatBollPrice(item.railPrice)}`)
+      .join(" / ")
+    : "轨道 --";
+  const activeRailTitle = activeRailSignal.items.length
+    ? `${activeBollPeriod.label} BOLL 相邻轨道距离：${activeRailSignal.items
+      .map((item) => `距${item.label}：(现价 ${formatPrice(quote.price)} - ${item.label} ${formatBollPrice(item.railPrice)}) ÷ ${item.label} ${formatBollPrice(item.railPrice)} = ${formatBollPercent(item.distancePct)}`)
+      .join("；")}`
+    : `${activeBollPeriod.label} BOLL 轨道距离暂无数据`;
   const dailyBollTrack = quote.bollTracks.day;
   const ma250Distance = ma250DistancePct(quote);
   const ma250PositionClass = Number.isFinite(ma250Distance)
@@ -810,9 +859,9 @@ function rowTemplate(quote) {
           <span class="price-track ${track?.className || "unknown"}" title="${escapeHtml(trackTitle)}">${escapeHtml(trackText)}</span>
         </div>
         <div class="boll-track-list" aria-label="BOLL 日周月轨道">${bollTrackRows}</div>
-        <div class="boll-lower-distance ${activeLowerRailSignal.status}" title="${escapeHtml(activeLowerRailTitle)}" aria-label="${escapeHtml(activeBollPeriod.label)} BOLL ${escapeHtml(activeLowerRailSignal.label)}">
-          <span>${escapeHtml(activeLowerRailSignal.label)}</span>
-          <small>${escapeHtml(activeBollPeriod.shortLabel)}线下轨 ${escapeHtml(formatBollPrice(activeBollTrack?.lower))}</small>
+        <div class="boll-rail-distance ${activeRailSignal.status}" title="${escapeHtml(activeRailTitle)}" aria-label="${escapeHtml(activeBollPeriod.label)} BOLL ${escapeHtml(activeRailDistanceText)}">
+          <span>${escapeHtml(activeRailDistanceText)}</span>
+          <small>${escapeHtml(activeBollPeriod.shortLabel)}线 ${escapeHtml(activeRailPriceText)}</small>
         </div>
         <div class="technical-price-levels" aria-label="日线 BOLL 与 MA250 技术价位">
           <span title="日线 BOLL 下轨">日下 <strong>${escapeHtml(formatBollPrice(dailyBollTrack?.lower))}</strong></span>
