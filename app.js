@@ -481,14 +481,17 @@ function normalizeAnnualLowPrices(stock) {
 
 function annualLowRows(quote) {
   return quote.recentAnnualLowPrices3y.map((item) => {
-    const available = Number.isFinite(item.price);
+    const available = Number.isFinite(item.price) && item.price > 0;
+    const distance = available && Number.isFinite(quote.price) && quote.price > 0
+      ? (quote.price / item.price - 1) * 100 : null;
+    const distanceText = formatPercent(distance);
     const period = item.current ? "年内最低" : "年度最低";
     const label = item.coverage === "partial" ? "区间最低" : period;
     const title = available
-      ? `${item.year} 年${label}：${formatPrice(item.price)}；不复权日 K 最低价；最低价日期：${item.date || "未知"}；数据截至：${item.asOf || "未知"}${item.coverage === "partial" ? "；数据未确认覆盖完整年度，不代表完整年度最低价" : ""}`
+      ? `${item.year} 年${label}：${formatPrice(item.price)}；不复权日 K 最低价；最低价日期：${item.date || "未知"}；数据截至：${item.asOf || "未知"}${item.coverage === "partial" ? "；数据未确认覆盖完整年度，不代表完整年度最低价" : ""}；现价较该低价：${distanceText}；计算方式：（当前价 ÷ 该低价 − 1）× 100%；当前价：${formatPrice(quote.price)}`
       : `${item.year} 年最低价暂无数据，等待历史行情同步`;
     const note = item.coverage === "partial" ? "区间最低" : item.current ? "年内" : "";
-    return `<span class="annual-low-item" title="${escapeHtml(title)}"><span class="annual-low-year">${item.year}${note ? `<small>${note}</small>` : ""}</span><strong>${available ? escapeHtml(formatPrice(item.price)) : "暂无数据"}</strong></span>`;
+    return `<span class="annual-low-item" title="${escapeHtml(title)}"><span class="annual-low-year">${item.year}${note ? `<small>${note}</small>` : ""}</span><strong>${available ? escapeHtml(formatPrice(item.price)) : "暂无数据"}</strong><small class="annual-low-distance">现价较低价 ${escapeHtml(distanceText)}</small></span>`;
   }).join("");
 }
 
