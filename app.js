@@ -217,7 +217,7 @@ const FILTER_META = {
   largestDaily: { title: "近3月异常", header: "当日涨跌幅" },
 };
 
-const DEFAULT_SORT_ORDER = "bollAscending";
+const DEFAULT_SORT_ORDER = "ma250Ascending";
 
 const PRICE_TRACK_META = {
   low: { label: "低位", className: "low" },
@@ -1098,7 +1098,7 @@ function render() {
     const distanceLabel = currentPriceSort ? "当前股价"
       : trackPositionSort ? "近一年位置"
       : twoYearSort ? "两年低价距离"
-      : ma250Sort ? "MA250 距离"
+      : ma250Sort ? "距年线（MA250）"
         : `${periodLabel} BOLL 下轨距离`;
     const ascending = state.sortOrder.endsWith("Ascending");
     const distanceSortLabel = currentPriceSort

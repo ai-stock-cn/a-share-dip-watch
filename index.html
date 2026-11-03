@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="./styles.css?v=44" />
     <script defer src="./auth.js?v=1"></script>
     <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=48"></script>
+    <script defer src="./app.js?v=49"></script>
   </head>
   <body class="auth-locked">
     <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -182,12 +182,12 @@
                 <option value="rise">涨幅优先</option>
                 <option value="currentPriceAscending">当前股价升序</option>
                 <option value="currentPriceDescending">当前股价降序</option>
-                <option value="bollAscending" selected>下轨距离升序</option>
+                <option value="bollAscending">下轨距离升序</option>
                 <option value="bollDescending">下轨距离降序</option>
                 <option value="twoYearLowAscending">两年低价距离 ↑</option>
                 <option value="twoYearLowDescending">两年低价距离 ↓</option>
-                <option value="ma250Ascending">MA250 距离升序</option>
-                <option value="ma250Descending">MA250 距离降序</option>
+                <option value="ma250Ascending" selected>距年线（MA250）升序</option>
+                <option value="ma250Descending">距年线（MA250）降序</option>
                 <option value="trackPositionAscending">一年位置：低 → 高</option>
                 <option value="trackPositionDescending">一年位置：高 → 低</option>
               </select>
