@@ -671,12 +671,9 @@ function getBollAdjacentRailSignal(price, track) {
     return { status: "unknown", items: [] };
   }
 
-  let railKeys;
-  if (price < lower) railKeys = ["lower"];
-  else if (price > upper) railKeys = ["upper"];
-  else if (price < middle) railKeys = ["lower", "middle"];
-  else if (price > middle) railKeys = ["middle", "upper"];
-  else railKeys = ["middle"];
+  const railKeys = price <= middle
+    ? ["lower", "middle"]
+    : ["middle", "upper"];
 
   const items = railKeys.map((key) => {
     const railPrice = { lower, middle, upper }[key];
