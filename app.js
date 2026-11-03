@@ -297,6 +297,7 @@ const elements = {
   pageSizeSelect: document.querySelector("#pageSizeSelect"),
   pageStatus: document.querySelector("#pageStatus"),
   periodFilter: document.querySelector("#periodFilter"),
+  priceTrackFilter: document.querySelector("#priceTrackFilter"),
   previousPageButton: document.querySelector("#previousPageButton"),
   refreshButton: document.querySelector("#refreshButton"),
   resetFiltersButton: document.querySelector("#resetFiltersButton"),
@@ -331,6 +332,7 @@ const state = {
   industry: "all",
   ma250Position: "all",
   period: "daily",
+  priceTrackBand: "all",
   threshold: 0,
   twoYearLowRange: "all",
   page: 1,
@@ -1046,6 +1048,12 @@ function matchesFilters(quote) {
   ) {
     return false;
   }
+  if (
+    state.priceTrackBand !== "all" &&
+    quote.priceTrackBand1y !== state.priceTrackBand
+  ) {
+    return false;
+  }
   if (state.threshold > 0 && metric > -state.threshold) return false;
   if (state.ma250Position !== "all") {
     const distance = ma250DistancePct(quote);
@@ -1134,6 +1142,7 @@ function render() {
   elements.thresholdFilter.value = String(state.threshold);
   elements.twoYearLowFilter.value = state.twoYearLowRange;
   elements.ma250Filter.value = state.ma250Position;
+  elements.priceTrackFilter.value = state.priceTrackBand;
   elements.starredOnlyFilter.checked = state.starredOnly;
   const metricSortActive = ["decline", "rise"].includes(state.sortOrder);
   if (metricSortActive) {
@@ -1497,6 +1506,7 @@ function resetFilters() {
   state.threshold = 0;
   state.twoYearLowRange = "all";
   state.ma250Position = "all";
+  state.priceTrackBand = "all";
   state.industry = "all";
   state.enterpriseNature = "all";
   state.bollPeriod = "day";
@@ -1515,6 +1525,7 @@ function showDeclineShortcut(threshold) {
   state.threshold = threshold;
   state.twoYearLowRange = "all";
   state.ma250Position = "all";
+  state.priceTrackBand = "all";
   state.industry = "all";
   state.enterpriseNature = "all";
   state.bollBand = "all";
@@ -1562,6 +1573,12 @@ elements.twoYearLowFilter.addEventListener("change", (event) => {
 });
 elements.ma250Filter.addEventListener("change", (event) => {
   state.ma250Position = ["all", "above", "below"].includes(event.target.value)
+    ? event.target.value : "all";
+  state.page = 1;
+  render();
+});
+elements.priceTrackFilter.addEventListener("change", (event) => {
+  state.priceTrackBand = ["all", "low", "middle", "high"].includes(event.target.value)
     ? event.target.value : "all";
   state.page = 1;
   render();
