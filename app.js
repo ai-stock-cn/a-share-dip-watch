@@ -247,6 +247,7 @@ const STAR_ICON = `
 
 let toastTimer;
 let quoteRefreshTimer;
+let appInitialized = false;
 const SNAPSHOT_REFRESH_MS = 15 * 60 * 1000;
 const SHANGHAI_TIME = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
@@ -1598,14 +1599,22 @@ elements.stockQuery.addEventListener("input", () => {
 });
 elements.stockQuery.addEventListener("focus", () => renderStockSuggestions());
 
-window.addEventListener("DOMContentLoaded", () => {
+function initializeApp() {
+  if (appInitialized) return;
+  appInitialized = true;
   if (!Array.isArray(state.codes)) state.codes = [...DEFAULT_CODES];
   state.codes = [...new Set(state.codes.filter((code) => /^\d{6}$/.test(code)))];
   render();
   refresh();
+}
+
+window.addEventListener("stock-authenticated", initializeApp);
+window.addEventListener("DOMContentLoaded", () => {
+  if (document.body.dataset.authenticated === "true") initializeApp();
 });
 
 document.addEventListener("visibilitychange", () => {
+  if (!appInitialized) return;
   window.clearTimeout(quoteRefreshTimer);
   if (document.hidden) renderMarketStatus(state.codes.map(quoteFor).filter(Boolean));
   else refresh({ automatic: true });
@@ -1613,5 +1622,5 @@ document.addEventListener("visibilitychange", () => {
 
 window.addEventListener("pagehide", () => window.clearTimeout(quoteRefreshTimer));
 window.addEventListener("pageshow", (event) => {
-  if (event.persisted && !document.hidden) refresh({ automatic: true });
+  if (appInitialized && event.persisted && !document.hidden) refresh({ automatic: true });
 });
