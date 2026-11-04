@@ -98,6 +98,7 @@ const EXTRA_CODES = [
   "000719",
   "000755",
   "000848",
+  "000858",
   "000999",
   "001965",
   "002003",
@@ -162,11 +163,13 @@ const EXTRA_CODES = [
   "601390",
   "601668",
   "601717",
+  "601766",
   "601816",
   "601919",
   "601928",
   "603195",
   "603565",
+  "603605",
   "603833",
   "603866",
   "605337",
@@ -174,6 +177,7 @@ const EXTRA_CODES = [
 ];
 
 const LATEST_ADDED_CODES = [
+  "000858",
   "000719",
   "000755",
   "002003",
@@ -197,6 +201,8 @@ const LATEST_ADDED_CODES = [
   "601083",
   "601107",
   "601717",
+  "601766",
+  "603605",
   "605337",
 ];
 
@@ -207,9 +213,9 @@ const DEFAULT_CODES = [
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v15",
+  watchlist: "a-share-dip-watch:watchlist:v16",
   starred: "a-share-dip-watch:starred:v1",
-  previousWatchlist: "a-share-dip-watch:watchlist:v14",
+  previousWatchlist: "a-share-dip-watch:watchlist:v15",
   legacyWatchlists: [
     "a-share-dip-watch:watchlist:v13",
     "a-share-dip-watch:watchlist:v12",
