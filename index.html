@@ -9,10 +9,10 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=49" />
+    <link rel="stylesheet" href="./styles.css?v=50" />
     <script defer src="./auth.js?v=2"></script>
     <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=61"></script>
+    <script defer src="./app.js?v=62"></script>
   </head>
   <body class="auth-locked">
     <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -214,15 +214,21 @@
                 <option value="below">股价在年线下</option>
               </select>
             </label>
-            <label class="control-field price-track-filter-field" for="priceTrackFilter" title="当前股价在近一年最低价与最高价区间中的位置；与其他筛选条件同时生效">
-              <span>价格位置</span>
-              <select id="priceTrackFilter">
-                <option value="all">全部位置</option>
-                <option value="low">低位</option>
-                <option value="middle">中位</option>
-                <option value="high">高位</option>
-              </select>
-            </label>
+            <div class="control-field price-track-filter-field" title="当前股价在近一年最低价与最高价区间中的位置；最多同时选择两个位置，并与其他筛选条件同时生效">
+              <span id="priceTrackFilterLabel">价格位置</span>
+              <div id="priceTrackFilter" class="multi-select">
+                <button id="priceTrackFilterButton" class="multi-select-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-labelledby="priceTrackFilterLabel priceTrackFilterValue">
+                  <span id="priceTrackFilterValue">全部位置</span>
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5" /></svg>
+                </button>
+                <div id="priceTrackFilterMenu" class="multi-select-menu" role="group" aria-label="价格位置选项" hidden>
+                  <label class="multi-select-option"><input type="checkbox" name="priceTrackFilter" value="low" /><span>低位</span></label>
+                  <label class="multi-select-option"><input type="checkbox" name="priceTrackFilter" value="middle" /><span>中位</span></label>
+                  <label class="multi-select-option"><input type="checkbox" name="priceTrackFilter" value="high" /><span>高位</span></label>
+                  <small>最多选择 2 个</small>
+                </div>
+              </div>
+            </div>
             <label class="control-field dividend-years-filter-field" for="dividendYearsFilter" title="按截至最新完整报告年度的连续正分红年数筛选；当前数据窗口为近 10 年">
               <span>连续分红</span>
               <select id="dividendYearsFilter">

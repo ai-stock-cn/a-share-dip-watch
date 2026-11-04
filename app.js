@@ -305,6 +305,10 @@ const elements = {
   pageStatus: document.querySelector("#pageStatus"),
   periodFilter: document.querySelector("#periodFilter"),
   priceTrackFilter: document.querySelector("#priceTrackFilter"),
+  priceTrackFilterButton: document.querySelector("#priceTrackFilterButton"),
+  priceTrackFilterMenu: document.querySelector("#priceTrackFilterMenu"),
+  priceTrackFilterOptions: document.querySelectorAll('[name="priceTrackFilter"]'),
+  priceTrackFilterValue: document.querySelector("#priceTrackFilterValue"),
   previousPageButton: document.querySelector("#previousPageButton"),
   refreshButton: document.querySelector("#refreshButton"),
   resetFiltersButton: document.querySelector("#resetFiltersButton"),
@@ -341,7 +345,7 @@ const state = {
   industry: "all",
   ma250Position: "all",
   period: "daily",
-  priceTrackBand: "all",
+  priceTrackBands: new Set(),
   threshold: 0,
   twoYearLowRange: "all",
   page: 1,
@@ -1087,8 +1091,8 @@ function matchesFilters(quote) {
     return false;
   }
   if (
-    state.priceTrackBand !== "all" &&
-    quote.priceTrackBand1y !== state.priceTrackBand
+    state.priceTrackBands.size > 0 &&
+    !state.priceTrackBands.has(quote.priceTrackBand1y)
   ) {
     return false;
   }
@@ -1192,7 +1196,7 @@ function render() {
   elements.thresholdFilter.value = String(state.threshold);
   elements.twoYearLowFilter.value = state.twoYearLowRange;
   elements.ma250Filter.value = state.ma250Position;
-  elements.priceTrackFilter.value = state.priceTrackBand;
+  updatePriceTrackFilterControl();
   elements.dividendYearsFilter.value = state.dividendYears;
   elements.weeklyMiddleFilter.value = state.weeklyMiddlePosition;
   elements.starredOnlyFilter.checked = state.starredOnly;
@@ -1553,12 +1557,30 @@ function toggleStar(code) {
   showToast(`${wasStarred ? "已取消关注" : "已关注"} ${quote?.name || code}`);
 }
 
+function updatePriceTrackFilterControl() {
+  const selectedBands = Object.keys(PRICE_TRACK_META)
+    .filter((band) => state.priceTrackBands.has(band));
+  elements.priceTrackFilterValue.textContent = selectedBands.length
+    ? selectedBands.map((band) => PRICE_TRACK_META[band].label).join(" + ")
+    : "全部位置";
+  elements.priceTrackFilterOptions.forEach((option) => {
+    const checked = state.priceTrackBands.has(option.value);
+    option.checked = checked;
+    option.disabled = selectedBands.length >= 2 && !checked;
+  });
+}
+
+function closePriceTrackFilterMenu() {
+  elements.priceTrackFilterMenu.hidden = true;
+  elements.priceTrackFilterButton.setAttribute("aria-expanded", "false");
+}
+
 function resetFilters() {
   state.period = "daily";
   state.threshold = 0;
   state.twoYearLowRange = "all";
   state.ma250Position = "all";
-  state.priceTrackBand = "all";
+  state.priceTrackBands.clear();
   state.dividendYears = "all";
   state.industry = "all";
   state.enterpriseNature = "all";
@@ -1579,7 +1601,7 @@ function showDeclineShortcut(threshold) {
   state.threshold = threshold;
   state.twoYearLowRange = "all";
   state.ma250Position = "all";
-  state.priceTrackBand = "all";
+  state.priceTrackBands.clear();
   state.dividendYears = "all";
   state.industry = "all";
   state.enterpriseNature = "all";
@@ -1633,11 +1655,23 @@ elements.ma250Filter.addEventListener("change", (event) => {
   state.page = 1;
   render();
 });
-elements.priceTrackFilter.addEventListener("change", (event) => {
-  state.priceTrackBand = ["all", "low", "middle", "high"].includes(event.target.value)
-    ? event.target.value : "all";
-  state.page = 1;
-  render();
+elements.priceTrackFilterButton.addEventListener("click", () => {
+  const willOpen = elements.priceTrackFilterMenu.hidden;
+  elements.priceTrackFilterMenu.hidden = !willOpen;
+  elements.priceTrackFilterButton.setAttribute("aria-expanded", String(willOpen));
+});
+elements.priceTrackFilterOptions.forEach((option) => {
+  option.addEventListener("change", () => {
+    if (option.checked && state.priceTrackBands.size >= 2) {
+      option.checked = false;
+      showToast("价格位置最多选择 2 个");
+      return;
+    }
+    if (option.checked) state.priceTrackBands.add(option.value);
+    else state.priceTrackBands.delete(option.value);
+    state.page = 1;
+    render();
+  });
 });
 elements.dividendYearsFilter.addEventListener("change", (event) => {
   state.dividendYears = ["all", "10plus"].includes(event.target.value)
@@ -1749,6 +1783,15 @@ elements.stockQuery.addEventListener("input", () => {
   renderStockSuggestions();
 });
 elements.stockQuery.addEventListener("focus", () => renderStockSuggestions());
+
+document.addEventListener("click", (event) => {
+  if (!elements.priceTrackFilter.contains(event.target)) closePriceTrackFilterMenu();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || elements.priceTrackFilterMenu.hidden) return;
+  closePriceTrackFilterMenu();
+  elements.priceTrackFilterButton.focus();
+});
 
 function initializeApp() {
   if (appInitialized) return;
