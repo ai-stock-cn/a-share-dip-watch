@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="./styles.css?v=49" />
     <script defer src="./auth.js?v=2"></script>
     <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=60"></script>
+    <script defer src="./app.js?v=61"></script>
   </head>
   <body class="auth-locked">
     <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -257,6 +257,14 @@
                 <option value="lower">下轨</option>
                 <option value="middle">中轨</option>
                 <option value="upper">上轨</option>
+              </select>
+            </label>
+            <label class="control-field compact" for="weeklyMiddleFilter" title="当前股价相对周线 BOLL 中轨的位置；与其他筛选条件同时生效">
+              <span>周中位置</span>
+              <select id="weeklyMiddleFilter">
+                <option value="all">全部</option>
+                <option value="above">周中线上</option>
+                <option value="below">周中线下</option>
               </select>
             </label>
             <button id="resetFiltersButton" class="reset-filters-button" type="button" title="清空当前筛选条件并恢复默认排序">

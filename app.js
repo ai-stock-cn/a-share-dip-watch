@@ -323,6 +323,7 @@ const elements = {
   updatedAt: document.querySelector("#updatedAt"),
   watchlistSection: document.querySelector("#watchlistSection"),
   watchlistTitle: document.querySelector("#watchlistTitle"),
+  weeklyMiddleFilter: document.querySelector("#weeklyMiddleFilter"),
 };
 
 const state = {
@@ -349,6 +350,7 @@ const state = {
   sortOrder: DEFAULT_SORT_ORDER,
   starredCodes: loadStarredCodes(),
   starredOnly: false,
+  weeklyMiddlePosition: "all",
 };
 
 function loadJson(key, fallback) {
@@ -1103,6 +1105,12 @@ function matchesFilters(quote) {
     if (state.ma250Position === "above" && distance < 0) return false;
     if (state.ma250Position === "below" && distance >= 0) return false;
   }
+  if (state.weeklyMiddlePosition !== "all") {
+    const weeklyMiddle = quote.bollTracks.week?.middle;
+    if (!Number.isFinite(quote.price) || !Number.isFinite(weeklyMiddle)) return false;
+    if (state.weeklyMiddlePosition === "above" && quote.price < weeklyMiddle) return false;
+    if (state.weeklyMiddlePosition === "below" && quote.price >= weeklyMiddle) return false;
+  }
   if (state.twoYearLowRange !== "all") {
     const distance = quote.twoYearLow.distancePct;
     if (!Number.isFinite(distance)) return false;
@@ -1186,6 +1194,7 @@ function render() {
   elements.ma250Filter.value = state.ma250Position;
   elements.priceTrackFilter.value = state.priceTrackBand;
   elements.dividendYearsFilter.value = state.dividendYears;
+  elements.weeklyMiddleFilter.value = state.weeklyMiddlePosition;
   elements.starredOnlyFilter.checked = state.starredOnly;
   const metricSortActive = ["decline", "rise"].includes(state.sortOrder);
   if (metricSortActive) {
@@ -1555,6 +1564,7 @@ function resetFilters() {
   state.enterpriseNature = "all";
   state.bollPeriod = "day";
   state.bollBand = "all";
+  state.weeklyMiddlePosition = "all";
   state.starredOnly = false;
   state.searchQuery = "";
   state.sortOrder = DEFAULT_SORT_ORDER;
@@ -1574,6 +1584,7 @@ function showDeclineShortcut(threshold) {
   state.industry = "all";
   state.enterpriseNature = "all";
   state.bollBand = "all";
+  state.weeklyMiddlePosition = "all";
   state.starredOnly = false;
   state.searchQuery = "";
   state.sortOrder = "decline";
@@ -1663,6 +1674,13 @@ elements.bollPeriodFilter.addEventListener("change", (event) => {
 });
 elements.bollBandFilter.addEventListener("change", (event) => {
   state.bollBand = BOLL_BAND_META[event.target.value]
+    ? event.target.value
+    : "all";
+  state.page = 1;
+  render();
+});
+elements.weeklyMiddleFilter.addEventListener("change", (event) => {
+  state.weeklyMiddlePosition = ["all", "above", "below"].includes(event.target.value)
     ? event.target.value
     : "all";
   state.page = 1;
