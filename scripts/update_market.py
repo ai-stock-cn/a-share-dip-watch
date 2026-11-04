@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import http.cookiejar
 import json
 import math
 import os
@@ -33,6 +34,7 @@ WEEKLY_HISTORY_LIMIT = 600
 HISTORICAL_DIVIDEND_YEARS = 10
 BOLL_PERIOD = 20
 BOLL_STD_MULTIPLIER = 2
+BOLL_BASIS = "day_month_tencent_week_xueqiu_qfq_v1"
 MA250_PERIOD = 250
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 RECENT_ANNUAL_LOW_BASIS = "unadjusted_daily_low_v1"
@@ -41,6 +43,11 @@ RECENT_ANNUAL_LOW_MAX_AGE_SECONDS = 60 * 60
 RECENT_ANNUAL_LOW_TIMEOUT_SECONDS = 12
 RECENT_ANNUAL_LOW_BATCH_SECONDS = 90
 USER_AGENT = "Mozilla/5.0 (compatible; AShareDipWatch/1.0; +https://github.com/)"
+XUEQIU_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/139.0.0.0 Safari/537.36"
+)
 
 
 def request_json(
@@ -63,6 +70,26 @@ def request_json(
                 raise
             time.sleep(2**attempt)
     raise RuntimeError("request failed")
+
+
+def fetch_xueqiu_cookie_header() -> str:
+    cookie_jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPCookieProcessor(cookie_jar)
+    )
+    request = urllib.request.Request(
+        "https://xueqiu.com/",
+        headers={
+            "User-Agent": XUEQIU_USER_AGENT,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+    )
+    with opener.open(request, timeout=35) as response:
+        response.read()
+    cookies = [f"{cookie.name}={cookie.value}" for cookie in cookie_jar]
+    if not any(cookie.name == "xq_a_token" for cookie in cookie_jar):
+        raise RuntimeError("Xueqiu access token was not issued")
+    return "; ".join(cookies)
 
 
 def request_text(
@@ -219,6 +246,15 @@ def fetch_three_month_metrics(
     missing_codes = [code for code in sorted(stocks) if code not in history_inputs]
 
     if missing_codes:
+        xueqiu_cookie_header = None
+        try:
+            xueqiu_cookie_header = fetch_xueqiu_cookie_header()
+            print("Xueqiu weekly BOLL source: ready", flush=True)
+        except Exception as error:
+            print(
+                f"Xueqiu weekly BOLL warning: {error}; using daily aggregation",
+                flush=True,
+            )
         completed = 0
         with ThreadPoolExecutor(max_workers=6) as executor:
             futures = {
@@ -227,6 +263,7 @@ def fetch_three_month_metrics(
                     code,
                     quote_day,
                     annual_low_cache.get(code),
+                    xueqiu_cookie_header,
                 ): code
                 for code in missing_codes
             }
@@ -243,6 +280,16 @@ def fetch_three_month_metrics(
                         f"{len(history_inputs)} available",
                         flush=True,
                     )
+
+        xueqiu_count = sum(
+            history.get("bollWeekSource") == "xueqiu_qfq_week"
+            for history in history_inputs.values()
+        )
+        print(
+            f"Weekly BOLL precision: {xueqiu_count} of "
+            f"{len(history_inputs)} rows from Xueqiu",
+            flush=True,
+        )
 
     minimum_histories = (len(stocks) * 90 + 99) // 100
     if len(history_inputs) < minimum_histories:
@@ -307,6 +354,8 @@ def fetch_three_month_metrics(
             "priceTrackBand1y": price_track_band,
             "bollBands": boll_bands,
             "bollTracks": boll_tracks,
+            "bollBasis": history.get("bollBasis"),
+            "bollWeekSource": history.get("bollWeekSource"),
             "ma250": number_or_none(history.get("ma250")),
             "annualLowPrices10y": history.get("annualLowPrices10y") or {},
             "historyAsOf": history["historyAsOf"],
@@ -384,6 +433,7 @@ def load_history_inputs_from_cache(
             ma250 = number_or_none(stock.get("ma250"))
             if (
                 stock.get("historyAsOf") != quote_day
+                or stock.get("bollBasis") != BOLL_BASIS
                 or baseline is None
                 or price_low is None
                 or price_high is None
@@ -401,6 +451,8 @@ def load_history_inputs_from_cache(
                 "priceLow1y": price_low,
                 "priceHigh1y": price_high,
                 "bollBands": boll_bands,
+                "bollBasis": BOLL_BASIS,
+                "bollWeekSource": stock.get("bollWeekSource"),
                 "ma250": ma250,
                 "annualLowPrices10y": {
                     str(year): float(value)
@@ -438,7 +490,10 @@ def load_annual_low_cache(codes: list[str]) -> dict[str, dict[str, float]]:
 
 
 def fetch_history_input(
-    code: str, quote_day, cached_annual_lows: dict[str, float] | None = None
+    code: str,
+    quote_day,
+    cached_annual_lows: dict[str, float] | None = None,
+    xueqiu_cookie_header: str | None = None,
 ) -> dict:
     symbol = f"sh{code}" if code.startswith("6") else f"sz{code}"
     try:
@@ -456,6 +511,17 @@ def fetch_history_input(
     except Exception:
         closes = fetch_sina_history_closes(symbol)
 
+    weekly_closes = None
+    week_source = "daily_qfq_aggregate"
+    if xueqiu_cookie_header:
+        try:
+            weekly_closes = fetch_xueqiu_weekly_closes(
+                code, quote_day, xueqiu_cookie_header
+            )
+            week_source = "xueqiu_qfq_week"
+        except Exception:
+            pass
+
     annual_lows = dict(cached_annual_lows or {})
     if not annual_lows:
         annual_lows = fetch_sina_annual_low_prices(symbol)
@@ -466,7 +532,72 @@ def fetch_history_input(
     if current_year_closes:
         annual_lows[str(quote_day.year)] = round(min(current_year_closes), 4)
 
-    return history_input_from_closes(closes, quote_day, annual_lows)
+    return history_input_from_closes(
+        closes,
+        quote_day,
+        annual_lows,
+        weekly_closes=weekly_closes,
+        week_source=week_source,
+    )
+
+
+def fetch_xueqiu_weekly_closes(
+    code: str, quote_day, cookie_header: str
+) -> list[tuple[datetime, float]]:
+    exchange = "SH" if code.startswith("6") else "SZ"
+    begin = datetime(
+        quote_day.year,
+        quote_day.month,
+        quote_day.day,
+        tzinfo=ZoneInfo("Asia/Shanghai"),
+    ) + timedelta(days=1)
+    params = {
+        "symbol": f"{exchange}{code}",
+        "begin": int(begin.timestamp() * 1000),
+        "period": "week",
+        "type": "before",
+        "count": -30,
+        "indicator": "kline",
+    }
+    request = urllib.request.Request(
+        "https://stock.xueqiu.com/v5/stock/chart/kline.json?"
+        + urllib.parse.urlencode(params),
+        headers={
+            "User-Agent": XUEQIU_USER_AGENT,
+            "Referer": "https://xueqiu.com/",
+            "Accept": "application/json, text/plain, */*",
+            "Cookie": cookie_header,
+        },
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        payload = json.load(response)
+    if payload.get("error_code") not in (None, 0):
+        raise RuntimeError(str(payload.get("error_description") or "Xueqiu error"))
+    data = payload.get("data") or {}
+    columns = data.get("column") or []
+    rows = data.get("item") or []
+    try:
+        timestamp_index = columns.index("timestamp")
+        close_index = columns.index("close")
+    except ValueError as error:
+        raise RuntimeError("invalid Xueqiu K-line columns") from error
+
+    closes: list[tuple[datetime, float]] = []
+    for row in rows:
+        if not isinstance(row, list) or len(row) <= max(timestamp_index, close_index):
+            continue
+        timestamp = number_or_none(row[timestamp_index])
+        close = number_or_none(row[close_index])
+        if timestamp is None or close is None:
+            continue
+        trade_date = datetime.fromtimestamp(
+            timestamp / 1000,
+            ZoneInfo("Asia/Shanghai"),
+        ).replace(tzinfo=None)
+        closes.append((trade_date, close))
+    if len(closes) < BOLL_PERIOD:
+        raise RuntimeError("insufficient Xueqiu weekly K-line rows")
+    return closes
 
 
 def history_closes_from_tencent(lines: list) -> list[tuple[datetime, float]]:
@@ -730,6 +861,9 @@ def history_input_from_closes(
     closes: list[tuple[datetime, float]],
     quote_day,
     annual_lows: dict[str, float],
+    *,
+    weekly_closes: list[tuple[datetime, float]] | None = None,
+    week_source: str = "daily_qfq_aggregate",
 ) -> dict:
 
     closes.sort(key=lambda row: row[0])
@@ -756,7 +890,7 @@ def history_input_from_closes(
         for trade_date, change in daily_changes
         if trade_date.date() < quote_day and trade_date >= cutoff and change < 0
     ]
-    boll_bands = calculate_boll_bands(closes)
+    boll_bands = calculate_boll_bands(closes, weekly_closes)
     if len(boll_bands) != 3:
         raise RuntimeError("insufficient BOLL history rows")
     if len(closes) < MA250_PERIOD:
@@ -770,6 +904,8 @@ def history_input_from_closes(
         "priceLow1y": round(min(close for _, close in one_year_rows), 4),
         "priceHigh1y": round(max(close for _, close in one_year_rows), 4),
         "bollBands": boll_bands,
+        "bollBasis": BOLL_BASIS,
+        "bollWeekSource": week_source,
         "ma250": round(ma250, 4),
         "annualLowPrices10y": annual_lows,
         "historyAsOf": quote_day.isoformat(),
@@ -778,10 +914,15 @@ def history_input_from_closes(
 
 def calculate_boll_bands(
     closes: list[tuple[datetime, float]],
+    weekly_closes: list[tuple[datetime, float]] | None = None,
 ) -> dict[str, dict[str, float]]:
     values_by_period = {
         "day": [close for _, close in closes],
-        "week": aggregate_period_closes(closes, "week"),
+        "week": (
+            [close for _, close in sorted(weekly_closes)]
+            if weekly_closes
+            else aggregate_period_closes(closes, "week")
+        ),
         "month": aggregate_period_closes(closes, "month"),
     }
     bands: dict[str, dict[str, float]] = {}
