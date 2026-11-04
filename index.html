@@ -9,10 +9,10 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=48" />
+    <link rel="stylesheet" href="./styles.css?v=49" />
     <script defer src="./auth.js?v=2"></script>
     <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=59"></script>
+    <script defer src="./app.js?v=60"></script>
   </head>
   <body class="auth-locked">
     <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -285,6 +285,7 @@
             <thead>
               <tr>
                 <th scope="col">股票</th>
+                <th scope="col" class="weekly-boll-column" title="周线 BOLL(20, 2σ) 下轨、中轨和上轨，保留三位小数">周线 BOLL</th>
                 <th scope="col" class="history-yield-column">历史股息率</th>
                 <th scope="col" class="annual-low-column" title="按不复权日 K 的最低价统计；本年为截至数据日期的年内最低价；现价较低价 =（当前价 ÷ 该低价 − 1）× 100%">近三年最低价</th>
                 <th id="changeHeader" scope="col" class="numeric change-column" aria-sort="ascending">
@@ -302,7 +303,7 @@
             </thead>
             <tbody id="stockRows">
               <tr class="loading-row">
-                <td colspan="7">
+                <td colspan="8">
                   <span class="spinner" aria-hidden="true"></span>
                   正在读取行情
                 </td>

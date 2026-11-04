@@ -504,7 +504,7 @@ button:disabled {
 
 table {
   width: 100%;
-  min-width: 900px;
+  min-width: 1040px;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -569,7 +569,7 @@ tbody tr:hover {
 
 th:first-child,
 td:first-child {
-  width: 24%;
+  width: 22%;
 }
 
 th.numeric,
@@ -577,15 +577,46 @@ td.numeric {
   text-align: right;
 }
 
+.weekly-boll-column,
+.weekly-boll-cell {
+  width: 11%;
+  text-align: right;
+}
+
+.weekly-boll-levels {
+  display: grid;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.weekly-boll-levels span {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.weekly-boll-levels small {
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.weekly-boll-levels strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+
 .history-yield-column,
 .history-yield-cell {
-  width: 17%;
+  width: 15%;
   text-align: right;
 }
 
 .annual-low-column,
 .annual-low-cell {
-  width: 17%;
+  width: 15%;
   text-align: right;
 }
 
@@ -653,17 +684,17 @@ td.numeric {
 
 .change-column,
 .change-cell {
-  width: 14%;
+  width: 12%;
 }
 
 .current-price-column,
 .current-price-cell {
-  width: 11%;
+  width: 10%;
 }
 
 .current-yield-column,
 .current-yield-cell {
-  width: 12%;
+  width: 10%;
 }
 
 .action-column,
@@ -1535,39 +1566,46 @@ noscript {
 
   th:first-child,
   td:first-child {
-    width: 24%;
+    width: 22%;
     padding-left: 12px;
+  }
+
+  .weekly-boll-column,
+  .weekly-boll-cell {
+    width: 11%;
+    padding-right: 4px;
+    padding-left: 4px;
   }
 
   .history-yield-column,
   .history-yield-cell {
-    width: 17%;
+    width: 15%;
     padding-right: 4px;
     padding-left: 4px;
   }
 
   .annual-low-column,
   .annual-low-cell {
-    width: 17%;
+    width: 15%;
   }
 
   .change-column,
   .change-cell {
-    width: 14%;
+    width: 12%;
     padding-right: 3px;
     padding-left: 3px;
   }
 
   .current-price-column,
   .current-price-cell {
-    width: 11%;
+    width: 10%;
     padding-right: 3px;
     padding-left: 3px;
   }
 
   .current-yield-column,
   .current-yield-cell {
-    width: 12%;
+    width: 10%;
     padding-right: 3px;
     padding-left: 3px;
   }

@@ -823,6 +823,12 @@ function rowTemplate(quote) {
       .join("；")}`
     : `${activeBollPeriod.label} BOLL 轨道距离暂无数据`;
   const dailyBollTrack = quote.bollTracks.day;
+  const weeklyBollTrack = quote.bollTracks.week;
+  const weeklyBollTitle = Number.isFinite(weeklyBollTrack?.lower) &&
+    Number.isFinite(weeklyBollTrack?.middle) &&
+    Number.isFinite(weeklyBollTrack?.upper)
+    ? `周线 BOLL(20, 2σ)：下轨 ${formatBollValue(weeklyBollTrack.lower)} / 中轨 ${formatBollValue(weeklyBollTrack.middle)} / 上轨 ${formatBollValue(weeklyBollTrack.upper)}；历史数据同步日：${quote.historyAsOf || "未知"}`
+    : "周线 BOLL 暂无数据";
   const ma250Distance = ma250DistancePct(quote);
   const ma250PositionClass = Number.isFinite(ma250Distance)
     ? ma250Distance >= 0 ? "above" : "below"
@@ -906,6 +912,13 @@ function rowTemplate(quote) {
           <span title="日线 BOLL 中轨">日中 <strong>${escapeHtml(formatBollPrice(dailyBollTrack?.middle))}</strong></span>
           <span title="日线 BOLL 上轨">日上 <strong>${escapeHtml(formatBollPrice(dailyBollTrack?.upper))}</strong></span>
           <span class="ma250-level ${ma250PositionClass}" title="${escapeHtml(ma250Title)}">MA250 <strong>${escapeHtml(formatBollPrice(quote.ma250))}</strong> · 距年线 <strong>${escapeHtml(formatBollPercent(ma250Distance))}</strong></span>
+        </div>
+      </td>
+      <td class="weekly-boll-cell">
+        <div class="weekly-boll-levels" title="${escapeHtml(weeklyBollTitle)}" aria-label="${escapeHtml(weeklyBollTitle)}">
+          <span><small>周下</small><strong>${escapeHtml(formatBollPrice(weeklyBollTrack?.lower))}</strong></span>
+          <span><small>周中</small><strong>${escapeHtml(formatBollPrice(weeklyBollTrack?.middle))}</strong></span>
+          <span><small>周上</small><strong>${escapeHtml(formatBollPrice(weeklyBollTrack?.upper))}</strong></span>
         </div>
       </td>
       <td class="history-yield-cell">
@@ -1133,15 +1146,15 @@ function render() {
 
   if (!state.codes.length) {
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="7">暂无自选股</td></tr>`;
+      <tr class="empty-row"><td colspan="8">暂无自选股</td></tr>`;
   } else if (!availableQuotes.length && state.loading) {
     elements.stockRows.innerHTML = `
       <tr class="loading-row">
-        <td colspan="7"><span class="spinner" aria-hidden="true"></span>正在读取行情</td>
+        <td colspan="8"><span class="spinner" aria-hidden="true"></span>正在读取行情</td>
       </tr>`;
   } else if (!availableQuotes.length) {
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="7">行情暂不可用</td></tr>`;
+      <tr class="empty-row"><td colspan="8">行情暂不可用</td></tr>`;
   } else if (!filteredQuotes.length) {
     const waitingForHistory = state.period === "largestDaily" && availableQuotes.some(
       (quote) => quote.historyAsOf !== shanghaiParts().day,
@@ -1154,7 +1167,7 @@ function render() {
           ? "历史指标待同步，暂无法完整判断今日异常"
           : "没有符合筛选条件的股票";
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="7">${emptyMessage}</td></tr>`;
+      <tr class="empty-row"><td colspan="8">${emptyMessage}</td></tr>`;
   } else {
     elements.stockRows.innerHTML = pageQuotes.map(rowTemplate).join("");
   }
