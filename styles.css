@@ -710,10 +710,14 @@ td.numeric {
   text-align: right;
 }
 
+.annual-low-column {
+  font-size: 14px;
+}
+
 .annual-low-list {
   display: grid;
   gap: 8px;
-  font-size: 13px;
+  font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -723,14 +727,14 @@ td.numeric {
   margin-bottom: 10px;
   padding-bottom: 9px;
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
 }
 
 .two-year-low-summary small {
   color: var(--ink-muted);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .annual-low-item {
@@ -749,7 +753,7 @@ td.numeric {
 }
 
 .annual-low-year small {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .annual-low-item strong {
@@ -760,7 +764,7 @@ td.numeric {
 .annual-low-distance {
   grid-column: 1 / -1;
   color: var(--ink-muted);
-  font-size: 11px;
+  font-size: 13px;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -773,7 +777,7 @@ td.numeric {
   display: block;
   margin-top: 9px;
   color: var(--ink-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
