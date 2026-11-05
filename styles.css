@@ -689,12 +689,12 @@ td.numeric {
 
 .weekly-boll-levels small {
   color: var(--ink-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .weekly-boll-levels strong {
   color: var(--ink);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 650;
 }
 
