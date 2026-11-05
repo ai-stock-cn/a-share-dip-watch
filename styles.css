@@ -814,7 +814,7 @@ td.numeric {
   gap: 5px;
   overflow: hidden;
   color: var(--ink);
-  font-size: 15px;
+  font-size: 17px;
   line-height: 1.35;
   font-weight: 680;
   text-overflow: ellipsis;
@@ -883,7 +883,7 @@ td.numeric {
 .external-link-mark {
   flex: 0 0 auto;
   color: var(--ink-muted);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 650;
   line-height: 1;
 }
@@ -900,7 +900,12 @@ td.numeric {
 .stock-code,
 .industry-tag,
 .enterprise-nature-tag,
-.price-track,
+.price-track {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .metric-note {
   color: var(--ink-muted);
   font-size: 12px;
@@ -952,7 +957,7 @@ td.numeric {
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: 2px;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.4;
   white-space: nowrap;
 }
@@ -967,7 +972,7 @@ td.numeric {
   gap: 2px;
   margin-top: 5px;
   color: var(--ink-muted);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
@@ -978,7 +983,7 @@ td.numeric {
 
 .boll-rail-distance small {
   color: var(--ink-muted);
-  font-size: 11px;
+  font-size: 12px;
   opacity: 0.86;
   white-space: normal;
 }
@@ -1007,7 +1012,7 @@ td.numeric {
   align-items: baseline;
   gap: 3px 10px;
   color: var(--ink-muted);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -1743,7 +1748,7 @@ noscript {
   }
 
   .stock-name {
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .history-yield-cell .metric-note-peak-price,
