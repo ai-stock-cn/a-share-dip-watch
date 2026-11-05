@@ -37,8 +37,8 @@ BOLL_STD_MULTIPLIER = 2
 BOLL_BASIS = "day_month_tencent_week_xueqiu_qfq_v1"
 MA250_PERIOD = 250
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
-RECENT_ANNUAL_LOW_BASIS = "unadjusted_daily_low_v1"
-RECENT_ANNUAL_LOW_HISTORY_LIMIT = 1023
+RECENT_ANNUAL_LOW_BASIS = "qfq_daily_low_v1"
+RECENT_ANNUAL_LOW_HISTORY_LIMIT = 1000
 RECENT_ANNUAL_LOW_MAX_AGE_SECONDS = 60 * 60
 RECENT_ANNUAL_LOW_TIMEOUT_SECONDS = 12
 RECENT_ANNUAL_LOW_BATCH_SECONDS = 90
@@ -600,6 +600,87 @@ def fetch_xueqiu_weekly_closes(
     return closes
 
 
+def fetch_xueqiu_daily_low_rows(
+    code: str, quote_day, cookie_header: str
+) -> list[dict]:
+    exchange = "SH" if code.startswith("6") else "SZ"
+    begin = datetime(
+        quote_day.year,
+        quote_day.month,
+        quote_day.day,
+        tzinfo=ZoneInfo("Asia/Shanghai"),
+    ) + timedelta(days=1)
+    params = {
+        "symbol": f"{exchange}{code}",
+        "begin": int(begin.timestamp() * 1000),
+        "period": "day",
+        "type": "before",
+        "count": -RECENT_ANNUAL_LOW_HISTORY_LIMIT,
+        "indicator": "kline",
+    }
+    request = urllib.request.Request(
+        "https://stock.xueqiu.com/v5/stock/chart/kline.json?"
+        + urllib.parse.urlencode(params),
+        headers={
+            "User-Agent": XUEQIU_USER_AGENT,
+            "Referer": "https://xueqiu.com/",
+            "Accept": "application/json, text/plain, */*",
+            "Cookie": cookie_header,
+        },
+    )
+    with urllib.request.urlopen(
+        request, timeout=RECENT_ANNUAL_LOW_TIMEOUT_SECONDS
+    ) as response:
+        payload = json.load(response)
+    if payload.get("error_code") not in (None, 0):
+        raise RuntimeError(str(payload.get("error_description") or "Xueqiu error"))
+    data = payload.get("data") or {}
+    columns = data.get("column") or []
+    rows = data.get("item") or []
+    try:
+        timestamp_index = columns.index("timestamp")
+        low_index = columns.index("low")
+    except ValueError as error:
+        raise RuntimeError("invalid Xueqiu daily K-line columns") from error
+
+    normalized: list[dict] = []
+    for row in rows:
+        if not isinstance(row, list) or len(row) <= max(timestamp_index, low_index):
+            continue
+        timestamp = number_or_none(row[timestamp_index])
+        low = number_or_none(row[low_index])
+        if timestamp is None or low is None:
+            continue
+        trade_day = datetime.fromtimestamp(
+            timestamp / 1000,
+            ZoneInfo("Asia/Shanghai"),
+        ).date()
+        normalized.append({"day": trade_day.isoformat(), "low": low})
+    if len(normalized) < 3:
+        raise RuntimeError("insufficient Xueqiu front-adjusted daily K-line rows")
+    return normalized
+
+
+def fetch_tencent_qfq_daily_low_rows(code: str) -> list[dict]:
+    symbol = f"sh{code}" if code.startswith("6") else f"sz{code}"
+    payload = request_json(
+        "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
+        {"param": f"{symbol},day,,,{RECENT_ANNUAL_LOW_HISTORY_LIMIT},qfq"},
+        retries=1,
+        referer="https://gu.qq.com/",
+    )
+    stock_payload = (payload.get("data") or {}).get(symbol) or {}
+    lines = stock_payload.get("qfqday") or []
+    normalized = [
+        {"day": str(line[0]), "low": line[4]}
+        for line in lines
+        if isinstance(line, list) and len(line) >= 5
+    ]
+    if len(normalized) < 3:
+        raise RuntimeError("insufficient Tencent front-adjusted daily K-line rows")
+    return normalized
+
+
 def history_closes_from_tencent(lines: list) -> list[tuple[datetime, float]]:
     closes: list[tuple[datetime, float]] = []
     for line in lines:
@@ -691,7 +772,7 @@ def recent_annual_low_prices_from_rows(rows: list[dict], now: datetime) -> list[
             continue
         daily_lows[trade_day] = min(daily_lows.get(trade_day, low), low)
     if not daily_lows:
-        raise RuntimeError("no valid unadjusted daily low prices")
+        raise RuntimeError("no valid front-adjusted daily low prices")
 
     earliest_day = min(daily_lows)
     latest_day = max(daily_lows)
@@ -798,22 +879,39 @@ def fetch_recent_annual_low_prices(codes: list[str], now: datetime) -> dict[str,
         print(f"Annual low cache: {len(fresh)} of {len(codes)} rows", flush=True)
         return results
 
-    def fetch_one(code: str) -> list[dict]:
-        symbol = f"sh{code}" if code.startswith("6") else f"sz{code}"
-        rows = fetch_sina_history_rows(
-            symbol, scale=240, datalen=RECENT_ANNUAL_LOW_HISTORY_LIMIT,
-            retries=1, timeout=RECENT_ANNUAL_LOW_TIMEOUT_SECONDS,
-        )
-        return recent_annual_low_prices_from_rows(rows, now)
+    xueqiu_cookie_header = None
+    try:
+        xueqiu_cookie_header = fetch_xueqiu_cookie_header()
+        print("Annual low source: Xueqiu front-adjusted daily K-line", flush=True)
+    except Exception as error:
+        print(f"Annual low source warning: {error}; using Tencent front-adjusted daily K-line",
+              flush=True)
+
+    def fetch_one(code: str) -> tuple[list[dict], str]:
+        xueqiu_error = None
+        if xueqiu_cookie_header:
+            try:
+                rows = fetch_xueqiu_daily_low_rows(code, now.date(), xueqiu_cookie_header)
+                return recent_annual_low_prices_from_rows(rows, now), "xueqiu"
+            except Exception as error:
+                xueqiu_error = error
+        try:
+            rows = fetch_tencent_qfq_daily_low_rows(code)
+            return recent_annual_low_prices_from_rows(rows, now), "tencent"
+        except Exception as error:
+            if xueqiu_error is not None:
+                raise RuntimeError(f"Xueqiu: {xueqiu_error}; Tencent: {error}") from error
+            raise
 
     executor = ThreadPoolExecutor(max_workers=6)
     futures = {executor.submit(fetch_one, code): code for code in missing_codes}
     refreshed = 0
+    source_counts = {"xueqiu": 0, "tencent": 0}
     try:
         for future in as_completed(futures, timeout=RECENT_ANNUAL_LOW_BATCH_SECONDS):
             code = futures[future]
             try:
-                prices = future.result()
+                prices, source = future.result()
                 old_as_of = max(
                     (row.get("asOf") or "" for row in results[code]["recentAnnualLowPrices3y"]),
                     default="",
@@ -844,6 +942,7 @@ def fetch_recent_annual_low_prices(codes: list[str], now: datetime) -> dict[str,
                     "recentAnnualLowPricesUpdatedAt": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(),
                 }
                 refreshed += 1
+                source_counts[source] += 1
             except Exception as error:
                 print(f"Annual low warning for {code}: {error}; "
                       "keeping cached or missing data", flush=True)
@@ -853,7 +952,9 @@ def fetch_recent_annual_low_prices(codes: list[str], now: datetime) -> dict[str,
         # Cancel queued requests; only up to six already-running, bounded requests remain.
         executor.shutdown(wait=True, cancel_futures=True)
     print(f"Annual lows: {refreshed} refreshed, {len(fresh)} fresh cached, "
-          f"{len(codes) - refreshed - len(fresh)} retained or missing", flush=True)
+          f"{len(codes) - refreshed - len(fresh)} retained or missing; "
+          f"{source_counts['xueqiu']} Xueqiu, {source_counts['tencent']} Tencent",
+          flush=True)
     return results
 
 

@@ -589,7 +589,7 @@ function formatPrice(value) {
 
 function normalizeAnnualLowPrices(stock) {
   const currentYear = Number(shanghaiParts().year);
-  const rows = stock.recentAnnualLowPricesBasis === "unadjusted_daily_low_v1" &&
+  const rows = stock.recentAnnualLowPricesBasis === "qfq_daily_low_v1" &&
     Array.isArray(stock.recentAnnualLowPrices3y) ? stock.recentAnnualLowPrices3y : [];
   return Array.from({ length: 3 }, (_, index) => {
     const year = currentYear - 2 + index;
@@ -619,7 +619,7 @@ function annualLowRows(quote) {
     const period = item.current ? "年内最低" : "年度最低";
     const label = item.coverage === "partial" ? "区间最低" : period;
     const title = available
-      ? `${item.year} 年${label}：${formatPrice(item.price)}；不复权日 K 最低价；最低价日期：${item.date || "未知"}；数据截至：${item.asOf || "未知"}${item.coverage === "partial" ? "；数据未确认覆盖完整年度，不代表完整年度最低价" : ""}；现价较该低价：${distanceText}；计算方式：（当前价 ÷ 该低价 − 1）× 100%；当前价：${formatPrice(quote.price)}`
+      ? `${item.year} 年${label}：${formatPrice(item.price)}；前复权日 K 最低价；最低价日期：${item.date || "未知"}；数据截至：${item.asOf || "未知"}${item.coverage === "partial" ? "；数据未确认覆盖完整年度，不代表完整年度最低价" : ""}；现价较该低价：${distanceText}；计算方式：（当前价 ÷ 该低价 − 1）× 100%；当前价：${formatPrice(quote.price)}`
       : `${item.year} 年最低价暂无数据，等待历史行情同步`;
     const note = item.coverage === "partial" ? "区间最低" : item.current ? "年内" : "";
     return `<span class="annual-low-item" title="${escapeHtml(title)}"><span class="annual-low-year">${item.year}${note ? `<small>${note}</small>` : ""}</span><strong>${available ? escapeHtml(formatPrice(item.price)) : "暂无数据"}</strong><small class="annual-low-distance">现价较低价 ${escapeHtml(distanceText)}</small></span>`;
@@ -891,7 +891,7 @@ function rowTemplate(quote) {
   const isStarred = state.starredCodes.has(quote.code);
   const annualLowAsOf = quote.recentAnnualLowPrices3y.find((item) => item.current)?.asOf;
   const twoYearLow = quote.twoYearLow;
-  const twoYearLowTitle = `${twoYearLow.yearsLabel}（今年+去年）的不复权最低价；当前年截至 ${annualLowAsOf || "未知"}；（当前价 ÷ 两年最低价 − 1）× 100%；升序按负值到正值排列，不取绝对值${twoYearLow.price === null ? "；两年历史数据不足" : ""}`;
+  const twoYearLowTitle = `${twoYearLow.yearsLabel}（今年+去年）的前复权最低价；当前年截至 ${annualLowAsOf || "未知"}；（当前价 ÷ 两年最低价 − 1）× 100%；升序按负值到正值排列，不取绝对值${twoYearLow.price === null ? "；两年历史数据不足" : ""}`;
   return `
     <tr data-code="${escapeHtml(quote.code)}">
       <td>
@@ -941,7 +941,7 @@ function rowTemplate(quote) {
           <small>${escapeHtml(twoYearLow.yearsLabel)} · ${twoYearLow.price === null ? "数据不足" : escapeHtml(formatPrice(twoYearLow.price))}</small>
         </div>
         <div class="annual-low-list" aria-label="最近三年最低股价">${annualLowRows(quote)}</div>
-        <small class="annual-low-note">不复权 · ${annualLowAsOf ? `本年截至 ${escapeHtml(annualLowAsOf)}` : "本年待同步"}</small>
+        <small class="annual-low-note">前复权 · ${annualLowAsOf ? `本年截至 ${escapeHtml(annualLowAsOf)}` : "本年待同步"}</small>
       </td>
       <td class="numeric change-cell">
         <span class="metric ${declineClass(changeValue)}">${formatPercent(changeValue)}</span>
