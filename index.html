@@ -9,10 +9,10 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=57" />
+    <link rel="stylesheet" href="./styles.css?v=58" />
     <script defer src="./auth.js?v=2"></script>
     <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=66"></script>
+    <script defer src="./app.js?v=67"></script>
   </head>
   <body class="auth-locked">
     <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -204,6 +204,15 @@
                 <option value="5">0～+5%</option>
                 <option value="10">0～+10%</option>
                 <option value="20">0～+20%</option>
+              </select>
+            </label>
+            <label class="control-field gap-status-filter-field" for="gapStatusFilter" title="按最近 520 个交易日内最近一次前复权日 K 缺口的补缺状态筛选；与其他筛选条件同时生效">
+              <span>缺口状态</span>
+              <select id="gapStatusFilter">
+                <option value="all">全部</option>
+                <option value="none">无缺口</option>
+                <option value="unfilled">有缺口未补</option>
+                <option value="filled">有缺口已补</option>
               </select>
             </label>
             <label class="control-field ma250-filter-field" for="ma250Filter" title="当前股价相对 MA250 年线的位置；与其他筛选条件同时生效">

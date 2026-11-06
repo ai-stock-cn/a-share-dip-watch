@@ -1686,6 +1686,7 @@ noscript {
 
   .filter-group .sort-order-field,
   .filter-group .two-year-low-filter-field,
+  .filter-group .gap-status-filter-field,
   .filter-group .ma250-filter-field,
   .filter-group .price-track-filter-field,
   .filter-group .dividend-years-filter-field {

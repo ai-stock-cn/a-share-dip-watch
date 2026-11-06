@@ -297,6 +297,7 @@ const elements = {
   dividendYearsFilter: document.querySelector("#dividendYearsFilter"),
   enterpriseNatureFilter: document.querySelector("#enterpriseNatureFilter"),
   formError: document.querySelector("#formError"),
+  gapStatusFilter: document.querySelector("#gapStatusFilter"),
   industryFilter: document.querySelector("#industryFilter"),
   ma250Filter: document.querySelector("#ma250Filter"),
   marketStatus: document.querySelector("#marketStatus"),
@@ -342,6 +343,7 @@ const state = {
   bollPeriod: "day",
   dividendYears: "all",
   enterpriseNature: "all",
+  gapStatus: "all",
   industry: "all",
   ma250Position: "all",
   period: "daily",
@@ -1146,6 +1148,12 @@ function matchesFilters(quote) {
   ) {
     return false;
   }
+  if (state.gapStatus !== "all") {
+    if (quote.gapBasis !== "qfq_daily_ohlc_v1") return false;
+    if (state.gapStatus === "none" && quote.recentGap !== null) return false;
+    if (state.gapStatus === "unfilled" && (!quote.recentGap || quote.recentGap.filled)) return false;
+    if (state.gapStatus === "filled" && (!quote.recentGap || !quote.recentGap.filled)) return false;
+  }
   if (state.threshold > 0 && metric > -state.threshold) return false;
   if (state.ma250Position !== "all") {
     const distance = ma250DistancePct(quote);
@@ -1242,6 +1250,7 @@ function render() {
   elements.ma250Filter.value = state.ma250Position;
   updatePriceTrackFilterControl();
   elements.dividendYearsFilter.value = state.dividendYears;
+  elements.gapStatusFilter.value = state.gapStatus;
   elements.weeklyMiddleFilter.value = state.weeklyMiddlePosition;
   elements.starredOnlyFilter.checked = state.starredOnly;
   const metricSortActive = ["decline", "rise"].includes(state.sortOrder);
@@ -1626,6 +1635,7 @@ function resetFilters() {
   state.ma250Position = "all";
   state.priceTrackBands.clear();
   state.dividendYears = "all";
+  state.gapStatus = "all";
   state.industry = "all";
   state.enterpriseNature = "all";
   state.bollPeriod = "day";
@@ -1647,6 +1657,7 @@ function showDeclineShortcut(threshold) {
   state.ma250Position = "all";
   state.priceTrackBands.clear();
   state.dividendYears = "all";
+  state.gapStatus = "all";
   state.industry = "all";
   state.enterpriseNature = "all";
   state.bollBand = "all";
@@ -1719,6 +1730,12 @@ elements.priceTrackFilterOptions.forEach((option) => {
 });
 elements.dividendYearsFilter.addEventListener("change", (event) => {
   state.dividendYears = ["all", "10plus"].includes(event.target.value)
+    ? event.target.value : "all";
+  state.page = 1;
+  render();
+});
+elements.gapStatusFilter.addEventListener("change", (event) => {
+  state.gapStatus = ["all", "none", "unfilled", "filled"].includes(event.target.value)
     ? event.target.value : "all";
   state.page = 1;
   render();
