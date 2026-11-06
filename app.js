@@ -514,6 +514,7 @@ function quoteFor(code) {
   if (!stored) return null;
   const stock = { ...stored, ...priceMetrics(stored) };
   const annualLows = normalizeAnnualLowPrices(stock);
+  const recentGap = normalizeRecentGap(stock);
   return {
     code,
     name: stock.name || code,
@@ -532,6 +533,8 @@ function quoteFor(code) {
     priceTrackPosition1y: numberOrNull(stock.priceTrackPosition1y),
     priceTrackBand1y: stock.priceTrackBand1y || null,
     ma250: numberOrNull(stock.ma250),
+    gapBasis: stock.gapBasis || null,
+    recentGap,
     bollTracks: Object.fromEntries(
       Object.entries(stock.bollTracks || {}).map(([period, track]) => [
         period,
@@ -610,6 +613,27 @@ function normalizeAnnualLowPrices(stock) {
   });
 }
 
+function normalizeRecentGap(stock) {
+  if (stock.gapBasis !== "qfq_daily_ohlc_v1") return null;
+  const gap = stock.recentGap;
+  if (!gap || !["up", "down"].includes(gap.direction)) return null;
+  const lower = numberOrNull(gap.lower);
+  const upper = numberOrNull(gap.upper);
+  const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || "");
+  if (!(lower > 0) || !(upper > lower) || !validDate(gap.date) ||
+      !validDate(gap.asOf) || typeof gap.filled !== "boolean") return null;
+  if (gap.filled && !validDate(gap.filledDate)) return null;
+  return {
+    direction: gap.direction,
+    lower,
+    upper,
+    date: gap.date,
+    filled: gap.filled,
+    filledDate: gap.filled ? gap.filledDate : null,
+    asOf: gap.asOf,
+  };
+}
+
 function annualLowRows(quote) {
   return quote.recentAnnualLowPrices3y.map((item) => {
     const available = Number.isFinite(item.price) && item.price > 0;
@@ -625,6 +649,21 @@ function annualLowRows(quote) {
     const lowDateText = available && item.date ? `最低日期 ${item.date}` : "最低日期 --";
     return `<span class="annual-low-item" title="${escapeHtml(title)}"><span class="annual-low-year">${item.year}${note ? `<small>${note}</small>` : ""}</span><strong>${available ? escapeHtml(formatPrice(item.price)) : "暂无数据"}</strong><small class="annual-low-date">${escapeHtml(lowDateText)}</small><small class="annual-low-distance">现价较低价 ${escapeHtml(distanceText)}</small></span>`;
   }).join("");
+}
+
+function recentGapMarkup(quote) {
+  const gap = quote.recentGap;
+  if (!gap) {
+    const note = quote.gapBasis === "qfq_daily_ohlc_v1"
+      ? "近 520 个交易日无完整缺口"
+      : "等待前复权日 K 同步";
+    return `<div class="recent-gap unknown" title="${escapeHtml(note)}"><span class="recent-gap-main"><strong>最近缺口</strong><span>--</span></span><small>${escapeHtml(note)}</small></div>`;
+  }
+  const directionText = gap.direction === "up" ? "向上" : "向下";
+  const directionMark = gap.direction === "up" ? "↑" : "↓";
+  const statusText = gap.filled ? `已补缺 ${gap.filledDate}` : `未补缺 · 截至 ${gap.asOf}`;
+  const title = `${gap.date} 形成${directionText}缺口 ${formatPrice(gap.lower)}–${formatPrice(gap.upper)}；${gap.filled ? `于 ${gap.filledDate} 完全回补` : `截至 ${gap.asOf} 尚未完全回补`}；前复权日 K 口径`;
+  return `<div class="recent-gap ${gap.direction} ${gap.filled ? "filled" : "unfilled"}" title="${escapeHtml(title)}"><span class="recent-gap-main"><strong>最近缺口</strong><b>${directionMark}${directionText}</b><span class="recent-gap-range">${escapeHtml(formatPrice(gap.lower))}–${escapeHtml(formatPrice(gap.upper))}</span></span><small>形成 ${escapeHtml(gap.date)} · ${escapeHtml(statusText)}</small></div>`;
 }
 
 function twoYearLowSummary(annualLows, currentPrice) {
@@ -844,6 +883,7 @@ function rowTemplate(quote) {
   const ma250Title = Number.isFinite(ma250Distance)
     ? `MA250（最近 250 个交易日前复权收盘价均值）：(现价 ${formatPrice(quote.price)} - 年线 ${formatBollPrice(quote.ma250)}) ÷ 年线 ${formatBollPrice(quote.ma250)} = ${formatBollPercent(ma250Distance)}；按带正负号的原始值筛选和排序，不取绝对值`
     : "MA250 暂无数据";
+  const recentGapHtml = recentGapMarkup(quote);
   const historicalYieldText = Number.isFinite(
     quote.historicalMaxDividendYield10y,
   )
@@ -921,6 +961,7 @@ function rowTemplate(quote) {
           <span title="日线 BOLL 上轨">日上 <strong>${escapeHtml(formatBollPrice(dailyBollTrack?.upper))}</strong></span>
           <span class="ma250-level ${ma250PositionClass}" title="${escapeHtml(ma250Title)}">MA250 <strong>${escapeHtml(formatBollPrice(quote.ma250))}</strong> · 距年线 <strong>${escapeHtml(formatBollPercent(ma250Distance))}</strong></span>
         </div>
+        ${recentGapHtml}
       </td>
       <td class="weekly-boll-cell">
         <div class="weekly-boll-levels" title="${escapeHtml(weeklyBollTitle)}" aria-label="${escapeHtml(weeklyBollTitle)}">

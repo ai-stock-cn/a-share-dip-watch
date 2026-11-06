@@ -35,6 +35,7 @@ HISTORICAL_DIVIDEND_YEARS = 10
 BOLL_PERIOD = 20
 BOLL_STD_MULTIPLIER = 2
 BOLL_BASIS = "day_month_tencent_week_xueqiu_qfq_v1"
+GAP_BASIS = "qfq_daily_ohlc_v1"
 MA250_PERIOD = 250
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 RECENT_ANNUAL_LOW_BASIS = "qfq_daily_low_v1"
@@ -357,6 +358,8 @@ def fetch_three_month_metrics(
             "bollBasis": history.get("bollBasis"),
             "bollWeekSource": history.get("bollWeekSource"),
             "ma250": number_or_none(history.get("ma250")),
+            "recentGap": normalize_recent_gap(history.get("recentGap")),
+            "gapBasis": history.get("gapBasis"),
             "annualLowPrices10y": history.get("annualLowPrices10y") or {},
             "historyAsOf": history["historyAsOf"],
         }
@@ -382,6 +385,51 @@ def normalize_boll_bands(payload: object) -> dict[str, dict[str, float]] | None:
             "upper": upper,
         }
     return normalized
+
+
+def normalize_recent_gap(payload: object) -> dict | None:
+    if not isinstance(payload, dict):
+        return None
+    direction = payload.get("direction")
+    lower = number_or_none(payload.get("lower"))
+    upper = number_or_none(payload.get("upper"))
+    formed_date = payload.get("date")
+    filled = payload.get("filled")
+    filled_date = payload.get("filledDate")
+    as_of = payload.get("asOf")
+    if (
+        direction not in {"up", "down"}
+        or lower is None
+        or upper is None
+        or lower <= 0
+        or upper <= lower
+        or not isinstance(formed_date, str)
+        or not isinstance(filled, bool)
+        or not isinstance(as_of, str)
+    ):
+        return None
+    try:
+        formed_day = datetime.strptime(formed_date, "%Y-%m-%d").date()
+        as_of_day = datetime.strptime(as_of, "%Y-%m-%d").date()
+        if formed_day > as_of_day:
+            return None
+        if filled:
+            fill_day = datetime.strptime(str(filled_date), "%Y-%m-%d").date()
+            if fill_day <= formed_day or fill_day > as_of_day:
+                return None
+        elif filled_date is not None:
+            return None
+    except (TypeError, ValueError):
+        return None
+    return {
+        "direction": direction,
+        "lower": round(lower, 4),
+        "upper": round(upper, 4),
+        "date": formed_date,
+        "filled": filled,
+        "filledDate": filled_date if filled else None,
+        "asOf": as_of,
+    }
 
 
 def boll_tracks_from_bands(
@@ -431,9 +479,12 @@ def load_history_inputs_from_cache(
             annual_lows = stock.get("annualLowPrices10y")
             boll_bands = normalize_boll_bands(stock.get("bollBands"))
             ma250 = number_or_none(stock.get("ma250"))
+            raw_gap = stock.get("recentGap")
+            recent_gap = normalize_recent_gap(raw_gap)
             if (
                 stock.get("historyAsOf") != quote_day
                 or stock.get("bollBasis") != BOLL_BASIS
+                or stock.get("gapBasis") != GAP_BASIS
                 or baseline is None
                 or price_low is None
                 or price_high is None
@@ -441,6 +492,7 @@ def load_history_inputs_from_cache(
                 or not annual_lows
                 or boll_bands is None
                 or ma250 is None
+                or (raw_gap is not None and recent_gap is None)
             ):
                 continue
             cached[code] = {
@@ -454,6 +506,8 @@ def load_history_inputs_from_cache(
                 "bollBasis": BOLL_BASIS,
                 "bollWeekSource": stock.get("bollWeekSource"),
                 "ma250": ma250,
+                "recentGap": recent_gap,
+                "gapBasis": GAP_BASIS,
                 "annualLowPrices10y": {
                     str(year): float(value)
                     for year, value in annual_lows.items()
@@ -496,6 +550,8 @@ def fetch_history_input(
     xueqiu_cookie_header: str | None = None,
 ) -> dict:
     symbol = f"sh{code}" if code.startswith("6") else f"sz{code}"
+    recent_gap = None
+    gap_basis = None
     try:
         payload = request_json(
             "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
@@ -504,10 +560,14 @@ def fetch_history_input(
             referer="https://gu.qq.com/",
         )
         stock_payload = (payload.get("data") or {}).get(symbol) or {}
-        lines = stock_payload.get("qfqday") or stock_payload.get("day") or []
+        qfq_lines = stock_payload.get("qfqday") or []
+        lines = qfq_lines or stock_payload.get("day") or []
         closes = history_closes_from_tencent(lines)
         if len(closes) < 3:
             raise RuntimeError("insufficient Tencent K-line rows")
+        if qfq_lines:
+            recent_gap = recent_gap_from_tencent_lines(qfq_lines)
+            gap_basis = GAP_BASIS
     except Exception:
         closes = fetch_sina_history_closes(symbol)
 
@@ -538,6 +598,8 @@ def fetch_history_input(
         annual_lows,
         weekly_closes=weekly_closes,
         week_source=week_source,
+        recent_gap=recent_gap,
+        gap_basis=gap_basis,
     )
 
 
@@ -679,6 +741,71 @@ def fetch_tencent_qfq_daily_low_rows(code: str) -> list[dict]:
     if len(normalized) < 3:
         raise RuntimeError("insufficient Tencent front-adjusted daily K-line rows")
     return normalized
+
+
+def recent_gap_from_tencent_lines(lines: list) -> dict | None:
+    by_day: dict = {}
+    for line in lines:
+        if not isinstance(line, list) or len(line) < 5:
+            continue
+        try:
+            trade_day = datetime.strptime(str(line[0]), "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        high = number_or_none(line[3])
+        low = number_or_none(line[4])
+        if (
+            high is None
+            or low is None
+            or not math.isfinite(high)
+            or not math.isfinite(low)
+            or low <= 0
+            or high < low
+        ):
+            continue
+        by_day[trade_day] = (high, low)
+
+    rows = [(trade_day, *values) for trade_day, values in sorted(by_day.items())]
+    if len(rows) < 2:
+        return None
+    as_of = rows[-1][0].isoformat()
+    for index in range(len(rows) - 1, 0, -1):
+        trade_day, current_high, current_low = rows[index]
+        _, previous_high, previous_low = rows[index - 1]
+        direction = None
+        lower = None
+        upper = None
+        if round(current_low, 2) > round(previous_high, 2):
+            direction = "up"
+            lower = previous_high
+            upper = current_low
+        elif round(current_high, 2) < round(previous_low, 2):
+            direction = "down"
+            lower = current_high
+            upper = previous_low
+        if direction is None or lower is None or upper is None:
+            continue
+
+        filled_date = None
+        for later_day, later_high, later_low in rows[index + 1:]:
+            filled = (
+                round(later_low, 2) <= round(lower, 2)
+                if direction == "up"
+                else round(later_high, 2) >= round(upper, 2)
+            )
+            if filled:
+                filled_date = later_day.isoformat()
+                break
+        return {
+            "direction": direction,
+            "lower": round(lower, 4),
+            "upper": round(upper, 4),
+            "date": trade_day.isoformat(),
+            "filled": filled_date is not None,
+            "filledDate": filled_date,
+            "asOf": as_of,
+        }
+    return None
 
 
 def history_closes_from_tencent(lines: list) -> list[tuple[datetime, float]]:
@@ -965,6 +1092,8 @@ def history_input_from_closes(
     *,
     weekly_closes: list[tuple[datetime, float]] | None = None,
     week_source: str = "daily_qfq_aggregate",
+    recent_gap: dict | None = None,
+    gap_basis: str | None = None,
 ) -> dict:
 
     closes.sort(key=lambda row: row[0])
@@ -1008,6 +1137,8 @@ def history_input_from_closes(
         "bollBasis": BOLL_BASIS,
         "bollWeekSource": week_source,
         "ma250": round(ma250, 4),
+        "recentGap": normalize_recent_gap(recent_gap),
+        "gapBasis": gap_basis,
         "annualLowPrices10y": annual_lows,
         "historyAsOf": quote_day.isoformat(),
     }
