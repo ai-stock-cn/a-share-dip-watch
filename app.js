@@ -655,11 +655,11 @@ function annualPriceRangeRows(quote) {
       ? `${item.year} 年${label}：最低 ${formatPrice(item.lowPrice)}（${item.lowDate || "日期未知"}），最高 ${formatPrice(item.highPrice)}（${item.highDate || "日期未知"}）；前复权日 K 最高价/最低价；数据截至：${item.asOf || "未知"}${item.coverage === "partial" ? "；数据未确认覆盖完整年度，不代表完整年度高低价" : ""}；现价较最低价：${distanceText}；计算方式：（当前价 ÷ 最低价 − 1）× 100%；当前价：${formatPrice(quote.price)}`
       : `${item.year} 年最高价和最低价暂无数据，等待历史行情同步`;
     const note = item.coverage === "partial" ? "区间" : item.current ? "年内" : "";
-    const lowDateText = available && item.lowDate ? `最低日期 ${item.lowDate}` : "最低日期 --";
-    const highDateText = available && item.highDate ? `最高日期 ${item.highDate}` : "最高日期 --";
+    const lowDateText = available && item.lowDate ? item.lowDate : "--";
+    const highDateText = available && item.highDate ? item.highDate : "--";
     const lowText = available ? escapeHtml(formatPrice(item.lowPrice)) : "暂无数据";
     const highText = available ? escapeHtml(formatPrice(item.highPrice)) : "暂无数据";
-    return `<span class="annual-price-range-item" title="${escapeHtml(title)}"><span class="annual-price-year">${item.year}${note ? `<small>${note}</small>` : ""}</span><span class="annual-extreme-value"><small>最低</small><strong>${lowText}</strong></span><small class="annual-extreme-date">${escapeHtml(lowDateText)}</small><small class="annual-low-distance">现价较低价 ${escapeHtml(distanceText)}</small><span class="annual-extreme-value annual-high-value"><small>最高</small><strong>${highText}</strong></span><small class="annual-extreme-date annual-high-date">${escapeHtml(highDateText)}</small></span>`;
+    return `<span class="annual-price-range-item" title="${escapeHtml(title)}"><span class="annual-price-year">${item.year}${note ? `<small>${note}</small>` : ""}</span><span class="annual-extreme-column annual-low-extreme"><span class="annual-extreme-value"><small>最低</small><strong>${lowText}</strong></span><small class="annual-extreme-date"><span>最低日期</span><time>${escapeHtml(lowDateText)}</time></small><small class="annual-low-distance"><span>现价较低价</span><strong>${escapeHtml(distanceText)}</strong></small></span><span class="annual-extreme-column annual-high-extreme"><span class="annual-extreme-value"><small>最高</small><strong>${highText}</strong></span><small class="annual-extreme-date"><span>最高日期</span><time>${escapeHtml(highDateText)}</time></small></span></span>`;
   }).join("");
 }
 
