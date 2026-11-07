@@ -594,7 +594,7 @@ button:disabled {
 
 table {
   width: 100%;
-  min-width: 1180px;
+  min-width: 1300px;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -659,7 +659,7 @@ tbody tr:hover {
 
 th:first-child,
 td:first-child {
-  width: 20%;
+  width: 18%;
 }
 
 th.numeric,
@@ -669,7 +669,7 @@ td.numeric {
 
 .weekly-boll-column,
 .weekly-boll-cell {
-  width: 10%;
+  width: 9%;
   text-align: right;
 }
 
@@ -700,7 +700,7 @@ td.numeric {
 
 .history-yield-column,
 .history-yield-cell {
-  width: 14%;
+  width: 13%;
   text-align: right;
 }
 
@@ -708,76 +708,34 @@ td.numeric {
   font-size: 14px;
 }
 
-.annual-low-column,
-.annual-low-cell {
-  width: 13%;
+.annual-year-column,
+.annual-year-cell {
+  width: 11%;
   text-align: right;
 }
 
-.annual-high-column,
-.annual-high-cell {
-  width: 10%;
-  text-align: right;
-}
-
-.annual-low-column,
-.annual-high-column {
+.annual-year-column {
   font-size: 14px;
 }
 
-.annual-price-range-list {
+.annual-year-range {
   display: grid;
-  gap: 11px;
+  gap: 10px;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
 
-.annual-range-summary {
-  display: grid;
-  gap: 4px;
-  margin-bottom: 10px;
-  padding-bottom: 9px;
-  border-bottom: 1px solid var(--line);
-  font-size: 15px;
-  line-height: 1.5;
-  font-variant-numeric: tabular-nums;
-}
-
-.two-year-low-summary small {
-  color: var(--ink-muted);
-  font-size: 13px;
-}
-
-.annual-price-range-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: 5px 9px;
-}
-
-.annual-price-year {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  text-align: left;
-  color: var(--ink-muted);
-}
-
-.annual-price-year small {
-  font-size: 12px;
-}
-
-.annual-extreme-column {
+.annual-year-extreme {
   min-width: 0;
   display: grid;
-  align-content: start;
   gap: 4px;
+  align-content: start;
   text-align: left;
 }
 
-.annual-high-extreme {
-  padding-left: 0;
-  border-left: 0;
+.annual-year-high {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
 }
 
 .annual-extreme-value {
@@ -793,12 +751,12 @@ td.numeric {
   font-size: 12px;
 }
 
-.annual-price-range-item strong {
+.annual-year-range strong {
   font-weight: 650;
 }
 
 .annual-extreme-date,
-.annual-low-distance {
+.annual-extreme-distance {
   color: var(--ink-muted);
   font-size: 13px;
   line-height: 1.4;
@@ -815,13 +773,36 @@ td.numeric {
   white-space: nowrap;
 }
 
-.annual-low-distance {
+.annual-extreme-distance {
   display: grid;
   gap: 1px;
 }
 
-.annual-low-distance strong {
+.annual-extreme-distance strong {
   color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.two-year-low-inline {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+  gap: 2px 6px;
+  margin-top: 11px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.two-year-low-inline span:last-child {
+  grid-column: 1 / -1;
+  text-align: right;
+}
+
+.two-year-low-inline strong {
+  color: var(--ink);
   font-size: 13px;
 }
 
@@ -835,17 +816,17 @@ td.numeric {
 
 .change-column,
 .change-cell {
-  width: 11%;
+  width: 9%;
 }
 
 .current-price-column,
 .current-price-cell {
-  width: 9%;
+  width: 7%;
 }
 
 .current-yield-column,
 .current-yield-cell {
-  width: 9%;
+  width: 7%;
 }
 
 .action-column,
@@ -1779,51 +1760,46 @@ noscript {
 
   th:first-child,
   td:first-child {
-    width: 20%;
+    width: 18%;
     padding-left: 12px;
   }
 
   .weekly-boll-column,
   .weekly-boll-cell {
-    width: 10%;
+    width: 9%;
     padding-right: 4px;
     padding-left: 4px;
   }
 
   .history-yield-column,
   .history-yield-cell {
-    width: 14%;
+    width: 13%;
     padding-right: 4px;
     padding-left: 4px;
   }
 
-  .annual-low-column,
-  .annual-low-cell {
-    width: 13%;
-  }
-
-  .annual-high-column,
-  .annual-high-cell {
-    width: 10%;
+  .annual-year-column,
+  .annual-year-cell {
+    width: 11%;
   }
 
   .change-column,
   .change-cell {
-    width: 11%;
+    width: 9%;
     padding-right: 3px;
     padding-left: 3px;
   }
 
   .current-price-column,
   .current-price-cell {
-    width: 9%;
+    width: 7%;
     padding-right: 3px;
     padding-left: 3px;
   }
 
   .current-yield-column,
   .current-yield-cell {
-    width: 9%;
+    width: 7%;
     padding-right: 3px;
     padding-left: 3px;
   }
