@@ -718,9 +718,9 @@ td.numeric {
   font-size: 14px;
 }
 
-.annual-low-list {
+.annual-price-range-list {
   display: grid;
-  gap: 8px;
+  gap: 11px;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
@@ -741,7 +741,7 @@ td.numeric {
   font-size: 13px;
 }
 
-.annual-low-item {
+.annual-price-range-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: baseline;
@@ -749,22 +749,34 @@ td.numeric {
   white-space: nowrap;
 }
 
-.annual-low-year {
+.annual-price-year {
   display: grid;
   gap: 2px;
   text-align: left;
   color: var(--ink-muted);
 }
 
-.annual-low-year small {
+.annual-price-year small {
   font-size: 12px;
 }
 
-.annual-low-item strong {
+.annual-extreme-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.annual-extreme-value small {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.annual-price-range-item strong {
   font-weight: 650;
 }
 
-.annual-low-date,
+.annual-extreme-date,
 .annual-low-distance {
   grid-column: 1 / -1;
   color: var(--ink-muted);
@@ -773,11 +785,20 @@ td.numeric {
   overflow-wrap: anywhere;
 }
 
-.annual-low-date {
+.annual-extreme-date {
   text-align: right;
 }
 
-.annual-low-note {
+.annual-high-value {
+  grid-column: 2;
+  margin-top: 2px;
+}
+
+.annual-high-date {
+  padding-bottom: 1px;
+}
+
+.annual-price-range-note {
   display: block;
   margin-top: 9px;
   color: var(--ink-muted);

@@ -38,11 +38,11 @@ BOLL_BASIS = "day_month_tencent_week_xueqiu_qfq_v1"
 GAP_BASIS = "qfq_daily_ohlc_v1"
 MA250_PERIOD = 250
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
-RECENT_ANNUAL_LOW_BASIS = "qfq_daily_low_v1"
-RECENT_ANNUAL_LOW_HISTORY_LIMIT = 1000
-RECENT_ANNUAL_LOW_MAX_AGE_SECONDS = 60 * 60
-RECENT_ANNUAL_LOW_TIMEOUT_SECONDS = 12
-RECENT_ANNUAL_LOW_BATCH_SECONDS = 90
+RECENT_ANNUAL_RANGE_BASIS = "qfq_daily_low_high_v1"
+RECENT_ANNUAL_RANGE_HISTORY_LIMIT = 1000
+RECENT_ANNUAL_RANGE_MAX_AGE_SECONDS = 60 * 60
+RECENT_ANNUAL_RANGE_TIMEOUT_SECONDS = 12
+RECENT_ANNUAL_RANGE_BATCH_SECONDS = 90
 USER_AGENT = "Mozilla/5.0 (compatible; AShareDipWatch/1.0; +https://github.com/)"
 XUEQIU_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -662,7 +662,7 @@ def fetch_xueqiu_weekly_closes(
     return closes
 
 
-def fetch_xueqiu_daily_low_rows(
+def fetch_xueqiu_daily_price_rows(
     code: str, quote_day, cookie_header: str
 ) -> list[dict]:
     exchange = "SH" if code.startswith("6") else "SZ"
@@ -677,7 +677,7 @@ def fetch_xueqiu_daily_low_rows(
         "begin": int(begin.timestamp() * 1000),
         "period": "day",
         "type": "before",
-        "count": -RECENT_ANNUAL_LOW_HISTORY_LIMIT,
+        "count": -RECENT_ANNUAL_RANGE_HISTORY_LIMIT,
         "indicator": "kline",
     }
     request = urllib.request.Request(
@@ -691,7 +691,7 @@ def fetch_xueqiu_daily_low_rows(
         },
     )
     with urllib.request.urlopen(
-        request, timeout=RECENT_ANNUAL_LOW_TIMEOUT_SECONDS
+        request, timeout=RECENT_ANNUAL_RANGE_TIMEOUT_SECONDS
     ) as response:
         payload = json.load(response)
     if payload.get("error_code") not in (None, 0):
@@ -701,40 +701,42 @@ def fetch_xueqiu_daily_low_rows(
     rows = data.get("item") or []
     try:
         timestamp_index = columns.index("timestamp")
+        high_index = columns.index("high")
         low_index = columns.index("low")
     except ValueError as error:
         raise RuntimeError("invalid Xueqiu daily K-line columns") from error
 
     normalized: list[dict] = []
     for row in rows:
-        if not isinstance(row, list) or len(row) <= max(timestamp_index, low_index):
+        if not isinstance(row, list) or len(row) <= max(timestamp_index, high_index, low_index):
             continue
         timestamp = number_or_none(row[timestamp_index])
+        high = number_or_none(row[high_index])
         low = number_or_none(row[low_index])
-        if timestamp is None or low is None:
+        if timestamp is None or high is None or low is None:
             continue
         trade_day = datetime.fromtimestamp(
             timestamp / 1000,
             ZoneInfo("Asia/Shanghai"),
         ).date()
-        normalized.append({"day": trade_day.isoformat(), "low": low})
+        normalized.append({"day": trade_day.isoformat(), "high": high, "low": low})
     if len(normalized) < 3:
         raise RuntimeError("insufficient Xueqiu front-adjusted daily K-line rows")
     return normalized
 
 
-def fetch_tencent_qfq_daily_low_rows(code: str) -> list[dict]:
+def fetch_tencent_qfq_daily_price_rows(code: str) -> list[dict]:
     symbol = f"sh{code}" if code.startswith("6") else f"sz{code}"
     payload = request_json(
         "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
-        {"param": f"{symbol},day,,,{RECENT_ANNUAL_LOW_HISTORY_LIMIT},qfq"},
+        {"param": f"{symbol},day,,,{RECENT_ANNUAL_RANGE_HISTORY_LIMIT},qfq"},
         retries=1,
         referer="https://gu.qq.com/",
     )
     stock_payload = (payload.get("data") or {}).get(symbol) or {}
     lines = stock_payload.get("qfqday") or []
     normalized = [
-        {"day": str(line[0]), "low": line[4]}
+        {"day": str(line[0]), "high": line[3], "low": line[4]}
         for line in lines
         if isinstance(line, list) and len(line) >= 5
     ]
@@ -878,51 +880,74 @@ def fetch_sina_history_rows(
     return [row for row in rows if isinstance(row, dict)]
 
 
-def empty_recent_annual_low_prices(
+def empty_recent_annual_price_ranges(
     current_year: int, as_of: str | None = None
 ) -> list[dict]:
     return [
-        {"year": year, "price": None, "date": None, "asOf": as_of, "coverage": "missing"}
+        {
+            "year": year,
+            "lowPrice": None,
+            "lowDate": None,
+            "highPrice": None,
+            "highDate": None,
+            "asOf": as_of,
+            "coverage": "missing",
+        }
         for year in range(current_year - 2, current_year + 1)
     ]
 
 
-def recent_annual_low_prices_from_rows(rows: list[dict], now: datetime) -> list[dict]:
-    daily_lows: dict = {}
+def recent_annual_price_ranges_from_rows(rows: list[dict], now: datetime) -> list[dict]:
+    daily_ranges: dict = {}
     for row in rows:
         try:
             trade_day = datetime.strptime(str(row.get("day")), "%Y-%m-%d").date()
         except (TypeError, ValueError):
             continue
         low = number_or_none(row.get("low"))
-        if trade_day > now.date() or low is None or not math.isfinite(low) or low <= 0:
+        high = number_or_none(row.get("high"))
+        if (trade_day > now.date() or low is None or high is None
+                or not math.isfinite(low) or not math.isfinite(high)
+                or low <= 0 or high < low):
             continue
-        daily_lows[trade_day] = min(daily_lows.get(trade_day, low), low)
-    if not daily_lows:
-        raise RuntimeError("no valid front-adjusted daily low prices")
+        previous = daily_ranges.get(trade_day)
+        daily_ranges[trade_day] = {
+            "low": min(previous["low"], low) if previous else low,
+            "high": max(previous["high"], high) if previous else high,
+        }
+    if not daily_ranges:
+        raise RuntimeError("no valid front-adjusted daily price ranges")
 
-    earliest_day = min(daily_lows)
-    latest_day = max(daily_lows)
-    prices = empty_recent_annual_low_prices(now.year, latest_day.isoformat())
-    for entry in prices:
+    earliest_day = min(daily_ranges)
+    latest_day = max(daily_ranges)
+    ranges = empty_recent_annual_price_ranges(now.year, latest_day.isoformat())
+    for entry in ranges:
         year = entry["year"]
-        candidates = [(day, low) for day, low in daily_lows.items() if day.year == year]
+        candidates = [
+            (day, values["low"], values["high"])
+            for day, values in daily_ranges.items()
+            if day.year == year
+        ]
         if not candidates:
             continue
         # Keep the first occurrence when the same minimum was traded on several days.
-        low_day, low = min(candidates, key=lambda item: (item[1], item[0]))
+        low_day, low, _ = min(candidates, key=lambda item: (item[1], item[0]))
+        # Keep the first occurrence when the same maximum was traded on several days.
+        high_day, _, high = min(candidates, key=lambda item: (-item[2], item[0]))
         partial = earliest_day.year == year or (
             year < now.year and latest_day.year == year
         )
         entry.update({
-            "price": round(low, 4),
-            "date": low_day.isoformat(),
+            "lowPrice": round(low, 4),
+            "lowDate": low_day.isoformat(),
+            "highPrice": round(high, 4),
+            "highDate": high_day.isoformat(),
             "coverage": "partial" if partial else "full",
         })
-    return prices
+    return ranges
 
 
-def load_recent_annual_low_cache(codes: list[str], now: datetime) -> tuple[dict, set[str]]:
+def load_recent_annual_range_cache(codes: list[str], now: datetime) -> tuple[dict, set[str]]:
     cached: dict[str, dict] = {}
     fresh: set[str] = set()
     if not MARKET_PATH.exists():
@@ -941,9 +966,9 @@ def load_recent_annual_low_cache(codes: list[str], now: datetime) -> tuple[dict,
     for code in codes:
         stock = cached_stocks.get(code) or {}
         if (not isinstance(stock, dict)
-                or stock.get("recentAnnualLowPricesBasis") != RECENT_ANNUAL_LOW_BASIS):
+                or stock.get("recentAnnualPriceRangesBasis") != RECENT_ANNUAL_RANGE_BASIS):
             continue
-        rows = stock.get("recentAnnualLowPrices3y")
+        rows = stock.get("recentAnnualPriceRanges3y")
         if not isinstance(rows, list):
             continue
         by_year = {}
@@ -957,74 +982,93 @@ def load_recent_annual_low_cache(codes: list[str], now: datetime) -> tuple[dict,
                 if as_of > now.date():
                     continue
                 if row.get("coverage") == "missing":
-                    by_year[year] = {"year": year, "price": None, "date": None,
-                                     "asOf": as_of.isoformat(), "coverage": "missing"}
+                    by_year[year] = {
+                        "year": year,
+                        "lowPrice": None,
+                        "lowDate": None,
+                        "highPrice": None,
+                        "highDate": None,
+                        "asOf": as_of.isoformat(),
+                        "coverage": "missing",
+                    }
                     continue
-                low_day = datetime.strptime(str(row.get("date")), "%Y-%m-%d").date()
-                price = number_or_none(row.get("price"))
-                if (low_day.year != year or low_day > as_of or price is None
-                        or not math.isfinite(price) or price <= 0
+                low_day = datetime.strptime(str(row.get("lowDate")), "%Y-%m-%d").date()
+                high_day = datetime.strptime(str(row.get("highDate")), "%Y-%m-%d").date()
+                low_price = number_or_none(row.get("lowPrice"))
+                high_price = number_or_none(row.get("highPrice"))
+                if (low_day.year != year or low_day > as_of
+                        or high_day.year != year or high_day > as_of
+                        or low_price is None or high_price is None
+                        or not math.isfinite(low_price) or not math.isfinite(high_price)
+                        or low_price <= 0 or high_price < low_price
                         or row.get("coverage") not in {"full", "partial"}):
                     continue
-                by_year[year] = {"year": year, "price": price, "date": low_day.isoformat(),
-                                 "asOf": as_of.isoformat(), "coverage": row["coverage"]}
+                by_year[year] = {
+                    "year": year,
+                    "lowPrice": low_price,
+                    "lowDate": low_day.isoformat(),
+                    "highPrice": high_price,
+                    "highDate": high_day.isoformat(),
+                    "asOf": as_of.isoformat(),
+                    "coverage": row["coverage"],
+                }
             except (TypeError, ValueError):
                 continue
         if not by_year:
             continue
-        updated_at = stock.get("recentAnnualLowPricesUpdatedAt")
+        updated_at = stock.get("recentAnnualPriceRangesUpdatedAt")
         cached[code] = {
-            "recentAnnualLowPrices3y": [
+            "recentAnnualPriceRanges3y": [
                 by_year.get(entry["year"], entry)
-                for entry in empty_recent_annual_low_prices(now.year)
+                for entry in empty_recent_annual_price_ranges(now.year)
             ],
-            "recentAnnualLowPricesBasis": RECENT_ANNUAL_LOW_BASIS,
-            "recentAnnualLowPricesUpdatedAt": updated_at if isinstance(updated_at, str) else None,
+            "recentAnnualPriceRangesBasis": RECENT_ANNUAL_RANGE_BASIS,
+            "recentAnnualPriceRangesUpdatedAt": updated_at if isinstance(updated_at, str) else None,
         }
         try:
             updated = datetime.fromisoformat(str(updated_at).replace("Z", "+00:00"))
             if (updated.tzinfo is not None and set(by_year) == expected_years
-                    and 0 <= (now - updated).total_seconds() < RECENT_ANNUAL_LOW_MAX_AGE_SECONDS):
+                    and 0 <= (now - updated).total_seconds() < RECENT_ANNUAL_RANGE_MAX_AGE_SECONDS):
                 fresh.add(code)
         except (TypeError, ValueError):
             pass
     return cached, fresh
 
 
-def fetch_recent_annual_low_prices(codes: list[str], now: datetime) -> dict[str, dict]:
-    cached, fresh = load_recent_annual_low_cache(codes, now)
+def fetch_recent_annual_price_ranges(codes: list[str], now: datetime) -> dict[str, dict]:
+    cached, fresh = load_recent_annual_range_cache(codes, now)
     results = {
         code: cached.get(code, {
-            "recentAnnualLowPrices3y": empty_recent_annual_low_prices(now.year),
-            "recentAnnualLowPricesBasis": RECENT_ANNUAL_LOW_BASIS,
-            "recentAnnualLowPricesUpdatedAt": None,
+            "recentAnnualPriceRanges3y": empty_recent_annual_price_ranges(now.year),
+            "recentAnnualPriceRangesBasis": RECENT_ANNUAL_RANGE_BASIS,
+            "recentAnnualPriceRangesUpdatedAt": None,
         })
         for code in codes
     }
     missing_codes = [code for code in codes if code not in fresh]
     if not missing_codes:
-        print(f"Annual low cache: {len(fresh)} of {len(codes)} rows", flush=True)
+        print(f"Annual price range cache: {len(fresh)} of {len(codes)} rows", flush=True)
         return results
 
     xueqiu_cookie_header = None
     try:
         xueqiu_cookie_header = fetch_xueqiu_cookie_header()
-        print("Annual low source: Xueqiu front-adjusted daily K-line", flush=True)
+        print("Annual price range source: Xueqiu front-adjusted daily K-line", flush=True)
     except Exception as error:
-        print(f"Annual low source warning: {error}; using Tencent front-adjusted daily K-line",
+        print(f"Annual price range source warning: {error}; using Tencent front-adjusted daily K-line",
               flush=True)
 
     def fetch_one(code: str) -> tuple[list[dict], str]:
         xueqiu_error = None
         if xueqiu_cookie_header:
             try:
-                rows = fetch_xueqiu_daily_low_rows(code, now.date(), xueqiu_cookie_header)
-                return recent_annual_low_prices_from_rows(rows, now), "xueqiu"
+                rows = fetch_xueqiu_daily_price_rows(code, now.date(), xueqiu_cookie_header)
+                return recent_annual_price_ranges_from_rows(rows, now), "xueqiu"
             except Exception as error:
                 xueqiu_error = error
         try:
-            rows = fetch_tencent_qfq_daily_low_rows(code)
-            return recent_annual_low_prices_from_rows(rows, now), "tencent"
+            rows = fetch_tencent_qfq_daily_price_rows(code)
+            return recent_annual_price_ranges_from_rows(rows, now), "tencent"
         except Exception as error:
             if xueqiu_error is not None:
                 raise RuntimeError(f"Xueqiu: {xueqiu_error}; Tencent: {error}") from error
@@ -1035,50 +1079,51 @@ def fetch_recent_annual_low_prices(codes: list[str], now: datetime) -> dict[str,
     refreshed = 0
     source_counts = {"xueqiu": 0, "tencent": 0}
     try:
-        for future in as_completed(futures, timeout=RECENT_ANNUAL_LOW_BATCH_SECONDS):
+        for future in as_completed(futures, timeout=RECENT_ANNUAL_RANGE_BATCH_SECONDS):
             code = futures[future]
             try:
-                prices, source = future.result()
+                ranges, source = future.result()
                 old_as_of = max(
-                    (row.get("asOf") or "" for row in results[code]["recentAnnualLowPrices3y"]),
+                    (row.get("asOf") or "" for row in results[code]["recentAnnualPriceRanges3y"]),
                     default="",
                 )
-                if old_as_of and prices[0]["asOf"] < old_as_of:
+                if old_as_of and ranges[0]["asOf"] < old_as_of:
                     raise RuntimeError("daily price response is older than cached data")
                 old_by_year = {
                     entry["year"]: entry
-                    for entry in results[code]["recentAnnualLowPrices3y"]
+                    for entry in results[code]["recentAnnualPriceRanges3y"]
                 }
                 coverage_rank = {"missing": 0, "partial": 1, "full": 2}
                 retained_years = []
-                for index, entry in enumerate(prices):
+                for index, entry in enumerate(ranges):
                     previous = old_by_year.get(entry["year"])
                     if (previous is not None
                             and coverage_rank[previous["coverage"]]
                             > coverage_rank[entry["coverage"]]):
-                        # A shorter response must not erase a complete annual minimum.
-                        # Preserve the original data date along with the cached value.
-                        prices[index] = previous
+                        # A shorter response must not erase a complete annual range.
+                        # Preserve the original data date along with the cached values.
+                        ranges[index] = previous
                         retained_years.append(str(entry["year"]))
                 if retained_years:
-                    print(f"Annual low warning for {code}: shorter coverage for "
+                    print(f"Annual price range warning for {code}: shorter coverage for "
                           f"{','.join(retained_years)}; keeping original cached dates", flush=True)
                 results[code] = {
-                    "recentAnnualLowPrices3y": prices,
-                    "recentAnnualLowPricesBasis": RECENT_ANNUAL_LOW_BASIS,
-                    "recentAnnualLowPricesUpdatedAt": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(),
+                    "recentAnnualPriceRanges3y": ranges,
+                    "recentAnnualPriceRangesBasis": RECENT_ANNUAL_RANGE_BASIS,
+                    "recentAnnualPriceRangesUpdatedAt": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(),
                 }
                 refreshed += 1
                 source_counts[source] += 1
             except Exception as error:
-                print(f"Annual low warning for {code}: {error}; "
+                print(f"Annual price range warning for {code}: {error}; "
                       "keeping cached or missing data", flush=True)
     except FuturesTimeoutError:
-        print("Annual low warning: batch deadline reached; keeping remaining cached data", flush=True)
+        print("Annual price range warning: batch deadline reached; "
+              "keeping remaining cached data", flush=True)
     finally:
         # Cancel queued requests; only up to six already-running, bounded requests remain.
         executor.shutdown(wait=True, cancel_futures=True)
-    print(f"Annual lows: {refreshed} refreshed, {len(fresh)} fresh cached, "
+    print(f"Annual price ranges: {refreshed} refreshed, {len(fresh)} fresh cached, "
           f"{len(codes) - refreshed - len(fresh)} retained or missing; "
           f"{source_counts['xueqiu']} Xueqiu, {source_counts['tencent']} Tencent",
           flush=True)
@@ -1432,7 +1477,7 @@ def main() -> None:
     stocks, quote_timestamp = fetch_quotes(universe)
     histories = fetch_three_month_metrics(stocks, quote_timestamp)
     dividends, annual_dividends = fetch_dividends(fiscal_year, codes)
-    recent_annual_lows = fetch_recent_annual_low_prices(codes, now)
+    recent_annual_ranges = fetch_recent_annual_price_ranges(codes, now)
 
     for code, stock in stocks.items():
         stock["dividendPerShare"] = round(dividends.get(code, 0.0), 8)
@@ -1442,7 +1487,7 @@ def main() -> None:
             {"threeMonthChangePct": None, "maxDailyDecline3m": None},
         )
         stock.update(history)
-        stock.update(recent_annual_lows[code])
+        stock.update(recent_annual_ranges[code])
         stock["consecutiveDividendYears"] = calculate_consecutive_dividend_years(
             annual_dividends.get(code, {}), fiscal_year
         )
