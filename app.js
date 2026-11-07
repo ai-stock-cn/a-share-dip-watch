@@ -294,6 +294,7 @@ const elements = {
   confirmAddButton: document.querySelector("#confirmAddButton"),
   severeDeclineCount: document.querySelector("#severeDeclineCount"),
   severeDeclineShortcut: document.querySelector("#severeDeclineShortcut"),
+  dividendYieldFilter: document.querySelector("#dividendYieldFilter"),
   dividendYearsFilter: document.querySelector("#dividendYearsFilter"),
   enterpriseNatureFilter: document.querySelector("#enterpriseNatureFilter"),
   formError: document.querySelector("#formError"),
@@ -341,6 +342,7 @@ const state = {
   missingQuotes: 0,
   bollBand: "all",
   bollPeriod: "day",
+  dividendYieldMin: 0,
   dividendYears: "all",
   enterpriseNature: "all",
   gapStatus: "all",
@@ -804,13 +806,16 @@ function metricFor(quote) {
   return quote.changePct;
 }
 
+function dividendYieldFor(quote) {
+  return Number.isFinite(quote.dividendPerShare) && quote.price > 0
+    ? (quote.dividendPerShare / quote.price) * 100
+    : null;
+}
+
 function rowTemplate(quote) {
   const changeValue = metricFor(quote);
   const freshness = quoteStatus(quote.quoteTime);
-  const dividendYield =
-    Number.isFinite(quote.dividendPerShare) && quote.price > 0
-      ? (quote.dividendPerShare / quote.price) * 100
-      : null;
+  const dividendYield = dividendYieldFor(quote);
   const yearNote = Number.isFinite(quote.dividendYear)
     ? `${quote.dividendYear} 年度`
     : "暂无分红数据";
@@ -1148,6 +1153,12 @@ function matchesFilters(quote) {
   ) {
     return false;
   }
+  if (state.dividendYieldMin > 0) {
+    const dividendYield = dividendYieldFor(quote);
+    if (!Number.isFinite(dividendYield) || dividendYield <= state.dividendYieldMin) {
+      return false;
+    }
+  }
   if (state.gapStatus !== "all") {
     if (quote.gapBasis !== "qfq_daily_ohlc_v1") return false;
     if (state.gapStatus === "none" && quote.recentGap !== null) return false;
@@ -1249,6 +1260,7 @@ function render() {
   elements.twoYearLowFilter.value = state.twoYearLowRange;
   elements.ma250Filter.value = state.ma250Position;
   updatePriceTrackFilterControl();
+  elements.dividendYieldFilter.value = String(state.dividendYieldMin);
   elements.dividendYearsFilter.value = state.dividendYears;
   elements.gapStatusFilter.value = state.gapStatus;
   elements.weeklyMiddleFilter.value = state.weeklyMiddlePosition;
@@ -1634,6 +1646,7 @@ function resetFilters() {
   state.twoYearLowRange = "all";
   state.ma250Position = "all";
   state.priceTrackBands.clear();
+  state.dividendYieldMin = 0;
   state.dividendYears = "all";
   state.gapStatus = "all";
   state.industry = "all";
@@ -1656,6 +1669,7 @@ function showDeclineShortcut(threshold) {
   state.twoYearLowRange = "all";
   state.ma250Position = "all";
   state.priceTrackBands.clear();
+  state.dividendYieldMin = 0;
   state.dividendYears = "all";
   state.gapStatus = "all";
   state.industry = "all";
@@ -1731,6 +1745,12 @@ elements.priceTrackFilterOptions.forEach((option) => {
 elements.dividendYearsFilter.addEventListener("change", (event) => {
   state.dividendYears = ["all", "10plus"].includes(event.target.value)
     ? event.target.value : "all";
+  state.page = 1;
+  render();
+});
+elements.dividendYieldFilter.addEventListener("change", (event) => {
+  const minimum = Number(event.target.value);
+  state.dividendYieldMin = [0, 3, 4, 5, 6].includes(minimum) ? minimum : 0;
   state.page = 1;
   render();
 });

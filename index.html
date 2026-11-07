@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="./styles.css?v=58" />
     <script defer src="./auth.js?v=2"></script>
     <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=67"></script>
+    <script defer src="./app.js?v=68"></script>
   </head>
   <body class="auth-locked">
     <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -243,6 +243,16 @@
               <select id="dividendYearsFilter">
                 <option value="all">全部年限</option>
                 <option value="10plus">10 年以上</option>
+              </select>
+            </label>
+            <label class="control-field" for="dividendYieldFilter" title="按最近完整财年税前现金分红 ÷ 当前股价计算的静态股息率筛选；与其他筛选条件同时生效">
+              <span>静态股息率</span>
+              <select id="dividendYieldFilter">
+                <option value="0">全部</option>
+                <option value="3">大于 3%</option>
+                <option value="4">大于 4%</option>
+                <option value="5">大于 5%</option>
+                <option value="6">大于 6%</option>
               </select>
             </label>
             <label class="control-field" for="industryFilter">
