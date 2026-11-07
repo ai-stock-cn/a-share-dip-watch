@@ -596,7 +596,7 @@ function formatPrice(value) {
 
 function normalizeAnnualPriceRanges(stock) {
   const currentYear = Number(shanghaiParts().year);
-  const rows = stock.recentAnnualPriceRangesBasis === "qfq_daily_low_high_v1" &&
+  const rows = stock.recentAnnualPriceRangesBasis === "qfq_daily_low_high_v2" &&
     Array.isArray(stock.recentAnnualPriceRanges3y) ? stock.recentAnnualPriceRanges3y : [];
   return Array.from({ length: 3 }, (_, index) => {
     const year = currentYear - 2 + index;

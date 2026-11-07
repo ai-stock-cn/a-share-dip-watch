@@ -38,7 +38,7 @@ BOLL_BASIS = "day_month_tencent_week_xueqiu_qfq_v1"
 GAP_BASIS = "qfq_daily_ohlc_v1"
 MA250_PERIOD = 250
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
-RECENT_ANNUAL_RANGE_BASIS = "qfq_daily_low_high_v1"
+RECENT_ANNUAL_RANGE_BASIS = "qfq_daily_low_high_v2"
 RECENT_ANNUAL_RANGE_HISTORY_LIMIT = 1000
 RECENT_ANNUAL_RANGE_MAX_AGE_SECONDS = 60 * 60
 RECENT_ANNUAL_RANGE_TIMEOUT_SECONDS = 12
@@ -725,7 +725,7 @@ def fetch_xueqiu_daily_price_rows(
     return normalized
 
 
-def fetch_tencent_qfq_daily_price_rows(code: str) -> list[dict]:
+def fetch_tencent_qfq_daily_price_rows(code: str, current_year: int) -> list[dict]:
     symbol = f"sh{code}" if code.startswith("6") else f"sz{code}"
     payload = request_json(
         "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
@@ -740,6 +740,60 @@ def fetch_tencent_qfq_daily_price_rows(code: str) -> list[dict]:
         for line in lines
         if isinstance(line, list) and len(line) >= 5
     ]
+    earliest_year = current_year - 2
+    try:
+        archive_payload = request_json(
+            "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
+            {
+                "param": (
+                    f"{symbol},day,{earliest_year}-01-01,"
+                    f"{earliest_year}-12-31,400,qfq"
+                )
+            },
+            retries=1,
+            referer="https://gu.qq.com/",
+        )
+        archive_stock = (archive_payload.get("data") or {}).get(symbol) or {}
+        archive_lines = archive_stock.get("qfqday") or []
+        recent_by_day = {
+            str(line[0]): line
+            for line in lines
+            if isinstance(line, list) and len(line) >= 5
+        }
+        overlap = next(
+            (
+                (line, recent_by_day[str(line[0])])
+                for line in reversed(archive_lines)
+                if isinstance(line, list)
+                and len(line) >= 5
+                and str(line[0]) in recent_by_day
+            ),
+            None,
+        )
+        earliest_recent_day = min(recent_by_day, default="")
+        if overlap and earliest_recent_day:
+            archive_close = number_or_none(overlap[0][2])
+            recent_close = number_or_none(overlap[1][2])
+            if archive_close and recent_close and archive_close > 0 and recent_close > 0:
+                adjustment_factor = recent_close / archive_close
+                normalized.extend(
+                    {
+                        "day": str(line[0]),
+                        "high": number_or_none(line[3]) * adjustment_factor,
+                        "low": number_or_none(line[4]) * adjustment_factor,
+                        "fullYear": True,
+                    }
+                    for line in archive_lines
+                    if isinstance(line, list)
+                    and len(line) >= 5
+                    and str(line[0]) < earliest_recent_day
+                    and number_or_none(line[3]) is not None
+                    and number_or_none(line[4]) is not None
+                )
+    except Exception:
+        # The recent response still provides useful partial coverage when the
+        # archived-year request is temporarily unavailable.
+        pass
     if len(normalized) < 3:
         raise RuntimeError("insufficient Tencent front-adjusted daily K-line rows")
     return normalized
@@ -899,6 +953,7 @@ def empty_recent_annual_price_ranges(
 
 def recent_annual_price_ranges_from_rows(rows: list[dict], now: datetime) -> list[dict]:
     daily_ranges: dict = {}
+    explicit_full_years: set[int] = set()
     for row in rows:
         try:
             trade_day = datetime.strptime(str(row.get("day")), "%Y-%m-%d").date()
@@ -915,6 +970,8 @@ def recent_annual_price_ranges_from_rows(rows: list[dict], now: datetime) -> lis
             "low": min(previous["low"], low) if previous else low,
             "high": max(previous["high"], high) if previous else high,
         }
+        if row.get("fullYear") is True:
+            explicit_full_years.add(trade_day.year)
     if not daily_ranges:
         raise RuntimeError("no valid front-adjusted daily price ranges")
 
@@ -934,8 +991,8 @@ def recent_annual_price_ranges_from_rows(rows: list[dict], now: datetime) -> lis
         low_day, low, _ = min(candidates, key=lambda item: (item[1], item[0]))
         # Keep the first occurrence when the same maximum was traded on several days.
         high_day, _, high = min(candidates, key=lambda item: (-item[2], item[0]))
-        partial = earliest_day.year == year or (
-            year < now.year and latest_day.year == year
+        partial = year not in explicit_full_years and (
+            earliest_day.year == year or (year < now.year and latest_day.year == year)
         )
         entry.update({
             "lowPrice": round(low, 4),
@@ -1067,7 +1124,7 @@ def fetch_recent_annual_price_ranges(codes: list[str], now: datetime) -> dict[st
             except Exception as error:
                 xueqiu_error = error
         try:
-            rows = fetch_tencent_qfq_daily_price_rows(code)
+            rows = fetch_tencent_qfq_daily_price_rows(code, now.year)
             return recent_annual_price_ranges_from_rows(rows, now), "tencent"
         except Exception as error:
             if xueqiu_error is not None:
