@@ -438,6 +438,7 @@ const elements = {
   gapStatusFilter: document.querySelector("#gapStatusFilter"),
   industryFilter: document.querySelector("#industryFilter"),
   ma250Filter: document.querySelector("#ma250Filter"),
+  marketCapFilter: document.querySelector("#marketCapFilter"),
   marketStatus: document.querySelector("#marketStatus"),
   nextPageButton: document.querySelector("#nextPageButton"),
   pageSizeSelect: document.querySelector("#pageSizeSelect"),
@@ -485,6 +486,7 @@ const state = {
   gapStatus: "all",
   industry: "all",
   ma250Position: "all",
+  marketCapMin: 0,
   period: "daily",
   priceTrackBands: new Set(),
   threshold: 0,
@@ -600,7 +602,7 @@ function mergeSnapshot(snapshot) {
     // A slow snapshot download must never roll a live quote back to an older price.
     if (current && Number.isFinite(Date.parse(currentTime)) &&
         (!Number.isFinite(Date.parse(incomingTime)) || Date.parse(currentTime) >= Date.parse(incomingTime))) {
-      for (const key of ["price", "changePct", "previousClose", "quoteSource"]) {
+      for (const key of ["price", "marketCapYi", "changePct", "previousClose", "quoteSource"]) {
         stocks[code][key] = current[key];
       }
       stocks[code].quoteTime = currentTime;
@@ -663,6 +665,7 @@ function quoteFor(code) {
     industryDetail: stock.industryDetail || stock.industry || "行业待同步",
     enterpriseNature: stock.enterpriseNature || "性质待同步",
     price: numberOrNull(stock.price),
+    marketCapYi: numberOrNull(stock.marketCapYi),
     changePct: numberOrNull(stock.changePct),
     quoteTime: stockQuoteTime(stored),
     quoteSource: stock.quoteSource || "snapshot",
@@ -729,6 +732,13 @@ function formatYield(value) {
 function formatPrice(value) {
   if (!Number.isFinite(value)) return "--";
   return `¥${value.toFixed(2)}`;
+}
+
+function formatMarketCap(value) {
+  if (!Number.isFinite(value) || value <= 0) return "--";
+  if (value >= 10000) return `${(value / 10000).toFixed(2)} 万亿`;
+  if (value >= 1000) return `${value.toFixed(0)} 亿`;
+  return `${value.toFixed(1)} 亿`;
 }
 
 function normalizeAnnualPriceRanges(stock) {
@@ -969,6 +979,10 @@ function rowTemplate(quote) {
   const changeValue = metricFor(quote);
   const freshness = quoteStatus(quote.quoteTime);
   const dividendYield = dividendYieldFor(quote);
+  const marketCapText = formatMarketCap(quote.marketCapYi);
+  const marketCapTitle = Number.isFinite(quote.marketCapYi) && quote.marketCapYi > 0
+    ? `总市值 ${quote.marketCapYi.toFixed(2)} 亿元；随腾讯实时行情更新`
+    : "总市值待行情同步";
   const yearNote = Number.isFinite(quote.dividendYear)
     ? `${quote.dividendYear} 年度`
     : "暂无分红数据";
@@ -1109,6 +1123,7 @@ function rowTemplate(quote) {
           <span class="stock-code">${escapeHtml(quote.code)}</span>
           <span class="industry-tag" title="同花顺申万行业：${escapeHtml(quote.industryDetail)}">${escapeHtml(quote.industry)}</span>
           <span class="enterprise-nature-tag" title="企业性质：${escapeHtml(quote.enterpriseNature)}">${escapeHtml(quote.enterpriseNature)}</span>
+          <span class="market-cap-tag" title="${escapeHtml(marketCapTitle)}">市值 ${escapeHtml(marketCapText)}</span>
           <span class="price-track ${track?.className || "unknown"}" title="${escapeHtml(trackTitle)}">${escapeHtml(trackText)}</span>
         </div>
         <div class="boll-track-list" aria-label="BOLL 日周月轨道">${bollTrackRows}</div>
@@ -1305,6 +1320,12 @@ function matchesFilters(quote) {
       return false;
     }
   }
+  if (
+    state.marketCapMin > 0 &&
+    (!Number.isFinite(quote.marketCapYi) || quote.marketCapYi < state.marketCapMin)
+  ) {
+    return false;
+  }
   if (state.gapStatus !== "all") {
     if (quote.gapBasis !== "qfq_daily_ohlc_v1") return false;
     if (state.gapStatus === "none" && quote.recentGap !== null) return false;
@@ -1411,6 +1432,7 @@ function render() {
   elements.thresholdFilter.value = String(state.threshold);
   elements.twoYearLowFilter.value = state.twoYearLowRange;
   elements.ma250Filter.value = state.ma250Position;
+  elements.marketCapFilter.value = String(state.marketCapMin);
   updatePriceTrackFilterControl();
   elements.dividendYieldFilter.value = String(state.dividendYieldMin);
   elements.dividendYearsFilter.value = state.dividendYears;
@@ -1797,6 +1819,7 @@ function resetFilters() {
   state.threshold = 0;
   state.twoYearLowRange = "all";
   state.ma250Position = "all";
+  state.marketCapMin = 0;
   state.priceTrackBands.clear();
   state.dividendYieldMin = 0;
   state.dividendYears = "all";
@@ -1820,6 +1843,7 @@ function showDeclineShortcut(threshold) {
   state.threshold = threshold;
   state.twoYearLowRange = "all";
   state.ma250Position = "all";
+  state.marketCapMin = 0;
   state.priceTrackBands.clear();
   state.dividendYieldMin = 0;
   state.dividendYears = "all";
@@ -1903,6 +1927,12 @@ elements.dividendYearsFilter.addEventListener("change", (event) => {
 elements.dividendYieldFilter.addEventListener("change", (event) => {
   const minimum = Number(event.target.value);
   state.dividendYieldMin = [0, 3, 4, 5, 6].includes(minimum) ? minimum : 0;
+  state.page = 1;
+  render();
+});
+elements.marketCapFilter.addEventListener("change", (event) => {
+  const minimum = Number(event.target.value);
+  state.marketCapMin = [0, 100, 500, 1000].includes(minimum) ? minimum : 0;
   state.page = 1;
   render();
 });

@@ -93,9 +93,13 @@ const LiveMarket = (() => {
       const suppliedChange = parseNumber(fields[32]);
       const changePct = suppliedChange ?? ((price - previousClose) / previousClose) * 100;
       if (!Number.isFinite(changePct)) continue;
+      const marketCapYi = parseNumber(fields[45]);
       // Keep the newest valid record if an upstream response repeats a symbol.
       if (quotes[code] && quotes[code].quoteTime > quoteTime) continue;
       quotes[code] = { name, price, previousClose, changePct, quoteTime, quoteSource: "live" };
+      if (marketCapYi !== null && marketCapYi > 0) {
+        quotes[code].marketCapYi = marketCapYi;
+      }
     }
     return quotes;
   }

@@ -175,6 +175,7 @@ def fetch_quotes(
             "industryDetail": item["industryDetail"] or item["industry"],
             "enterpriseNature": item["enterpriseNature"],
             "price": None,
+            "marketCapYi": None,
             "changePct": None,
             "quoteTime": None,
             "quoteSource": "snapshot",
@@ -193,12 +194,13 @@ def fetch_quotes(
         )
         for _symbol, quote in re.findall(r'v_([^=]+)="([^"]*)";', body):
             fields = quote.split("~")
-            if len(fields) < 33:
+            if len(fields) < 46:
                 continue
             code = fields[2]
             if code not in stocks:
                 continue
             price = number_or_none(fields[3])
+            market_cap_yi = number_or_none(fields[45])
             change_pct = number_or_none(fields[32])
             quote_time = None
             try:
@@ -214,6 +216,7 @@ def fetch_quotes(
                 "industryDetail": stocks[code]["industryDetail"],
                 "enterpriseNature": stocks[code]["enterpriseNature"],
                 "price": price,
+                "marketCapYi": market_cap_yi if market_cap_yi and market_cap_yi > 0 else None,
                 "changePct": change_pct,
                 "quoteTime": quote_time.isoformat() if quote_time else None,
                 "quoteSource": "snapshot",

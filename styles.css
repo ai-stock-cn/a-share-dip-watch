@@ -929,6 +929,7 @@ td.numeric {
 .stock-code,
 .industry-tag,
 .enterprise-nature-tag,
+.market-cap-tag,
 .price-track {
   color: var(--ink-muted);
   font-size: 13px;
@@ -942,7 +943,8 @@ td.numeric {
 }
 
 .industry-tag,
-.enterprise-nature-tag {
+.enterprise-nature-tag,
+.market-cap-tag {
   padding: 1px 4px;
   border: 1px solid var(--line-strong);
   border-radius: 2px;
@@ -955,6 +957,12 @@ td.numeric {
   border-color: #d7cfbc;
   background: #faf7ef;
   color: #685b3b;
+}
+
+.market-cap-tag {
+  border-color: #c9d8d1;
+  background: #f3f8f5;
+  color: #315e4d;
 }
 
 .price-track {

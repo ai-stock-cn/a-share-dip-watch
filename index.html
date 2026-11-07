@@ -9,10 +9,10 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=62" />
+    <link rel="stylesheet" href="./styles.css?v=63" />
     <script defer src="./auth.js?v=2"></script>
-    <script defer src="./live-market.js?v=34"></script>
-    <script defer src="./app.js?v=73"></script>
+    <script defer src="./live-market.js?v=35"></script>
+    <script defer src="./app.js?v=74"></script>
   </head>
   <body class="auth-locked">
     <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -253,6 +253,15 @@
                 <option value="4">大于 4%</option>
                 <option value="5">大于 5%</option>
                 <option value="6">大于 6%</option>
+              </select>
+            </label>
+            <label class="control-field" for="marketCapFilter" title="按腾讯行情总市值筛选，单位为亿元；与其他筛选条件同时生效">
+              <span>总市值</span>
+              <select id="marketCapFilter">
+                <option value="0">全部市值</option>
+                <option value="100">100 亿以上</option>
+                <option value="500">500 亿以上</option>
+                <option value="1000">1000 亿以上</option>
               </select>
             </label>
             <label class="control-field" for="industryFilter">
