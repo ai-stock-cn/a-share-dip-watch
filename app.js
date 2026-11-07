@@ -778,8 +778,8 @@ function normalizeRecentGap(stock) {
   };
 }
 
-function annualPriceRangeRows(quote) {
-  return quote.recentAnnualPriceRanges3y.map((item) => {
+function annualPriceRangeColumns(quote) {
+  const rows = quote.recentAnnualPriceRanges3y.map((item) => {
     const available = Number.isFinite(item.lowPrice) && item.lowPrice > 0 &&
       Number.isFinite(item.highPrice) && item.highPrice >= item.lowPrice;
     const distance = available && Number.isFinite(quote.price) && quote.price > 0
@@ -795,8 +795,16 @@ function annualPriceRangeRows(quote) {
     const highDateText = available && item.highDate ? item.highDate : "--";
     const lowText = available ? escapeHtml(formatPrice(item.lowPrice)) : "暂无数据";
     const highText = available ? escapeHtml(formatPrice(item.highPrice)) : "暂无数据";
-    return `<span class="annual-price-range-item" title="${escapeHtml(title)}"><span class="annual-price-year">${item.year}${note ? `<small>${note}</small>` : ""}</span><span class="annual-extreme-column annual-low-extreme"><span class="annual-extreme-value"><small>最低</small><strong>${lowText}</strong></span><small class="annual-extreme-date"><span>最低日期</span><time>${escapeHtml(lowDateText)}</time></small><small class="annual-low-distance"><span>现价较低价</span><strong>${escapeHtml(distanceText)}</strong></small></span><span class="annual-extreme-column annual-high-extreme"><span class="annual-extreme-value"><small>最高</small><strong>${highText}</strong></span><small class="annual-extreme-date"><span>最高日期</span><time>${escapeHtml(highDateText)}</time></small></span></span>`;
-  }).join("");
+    const year = `<span class="annual-price-year">${item.year}${note ? `<small>${note}</small>` : ""}</span>`;
+    return {
+      low: `<span class="annual-price-range-item" title="${escapeHtml(title)}">${year}<span class="annual-extreme-column annual-low-extreme"><span class="annual-extreme-value"><small>最低</small><strong>${lowText}</strong></span><small class="annual-extreme-date"><span>最低日期</span><time>${escapeHtml(lowDateText)}</time></small><small class="annual-low-distance"><span>现价较低价</span><strong>${escapeHtml(distanceText)}</strong></small></span></span>`,
+      high: `<span class="annual-price-range-item" title="${escapeHtml(title)}">${year}<span class="annual-extreme-column annual-high-extreme"><span class="annual-extreme-value"><small>最高</small><strong>${highText}</strong></span><small class="annual-extreme-date"><span>最高日期</span><time>${escapeHtml(highDateText)}</time></small></span></span>`,
+    };
+  });
+  return {
+    low: rows.map((row) => row.low).join(""),
+    high: rows.map((row) => row.high).join(""),
+  };
 }
 
 function recentGapMarkup(quote) {
@@ -825,6 +833,20 @@ function twoYearLowSummary(annualLows, currentPrice) {
   const distancePct = price > 0 && Number.isFinite(currentPrice) && currentPrice > 0
     ? (currentPrice / price - 1) * 100 : null;
   return { price, date: lowRow?.lowDate || null, distancePct, yearsLabel: years.join("–") };
+}
+
+function threeYearHighSummary(annualRanges) {
+  const rows = annualRanges.filter((item) =>
+    Number.isFinite(item.highPrice) && item.highPrice > 0);
+  const highRow = rows.reduce((best, item) =>
+    !best || item.highPrice > best.highPrice ? item : best, null);
+  const years = annualRanges.map((item) => item.year);
+  return {
+    price: highRow?.highPrice ?? null,
+    date: highRow?.highDate || null,
+    year: highRow?.year || null,
+    yearsLabel: years.length ? `${years[0]}–${years[years.length - 1]}` : "近三年",
+  };
 }
 
 function formatBollValue(value) {
@@ -1084,7 +1106,10 @@ function rowTemplate(quote) {
   const isStarred = state.starredCodes.has(quote.code);
   const annualRangeAsOf = quote.recentAnnualPriceRanges3y.find((item) => item.current)?.asOf;
   const twoYearLow = quote.twoYearLow;
+  const annualPriceColumns = annualPriceRangeColumns(quote);
+  const threeYearHigh = threeYearHighSummary(quote.recentAnnualPriceRanges3y);
   const twoYearLowTitle = `${twoYearLow.yearsLabel}（今年+去年）的前复权最低价；最低价日期 ${twoYearLow.date || "未知"}；当前年截至 ${annualRangeAsOf || "未知"}；（当前价 ÷ 两年最低价 − 1）× 100%；升序按负值到正值排列，不取绝对值${twoYearLow.price === null ? "；两年历史数据不足" : ""}`;
+  const threeYearHighTitle = `${threeYearHigh.yearsLabel} 的前复权最高价${threeYearHigh.price === null ? "数据不足" : `为 ${formatPrice(threeYearHigh.price)}，出现在 ${threeYearHigh.date || "日期未知"}`}；当前年截至 ${annualRangeAsOf || "未知"}`;
   return `
     <tr data-code="${escapeHtml(quote.code)}">
       <td>
@@ -1130,12 +1155,21 @@ function rowTemplate(quote) {
         </div>
       </td>
       <td class="annual-low-cell">
-        <div class="two-year-low-summary" title="${escapeHtml(twoYearLowTitle)}">
+        <div class="annual-range-summary two-year-low-summary" title="${escapeHtml(twoYearLowTitle)}">
           <span>距两年低价 <strong>${escapeHtml(formatPercent(twoYearLow.distancePct))}</strong></span>
           <small>${escapeHtml(twoYearLow.yearsLabel)} · ${twoYearLow.price === null ? "数据不足" : escapeHtml(formatPrice(twoYearLow.price))}</small>
           <small class="two-year-low-date">最低日期 ${escapeHtml(twoYearLow.date || "--")}</small>
         </div>
-        <div class="annual-price-range-list" aria-label="最近三年最高和最低股价">${annualPriceRangeRows(quote)}</div>
+        <div class="annual-price-range-list" aria-label="最近三年最低股价">${annualPriceColumns.low}</div>
+        <small class="annual-price-range-note">前复权 · ${annualRangeAsOf ? `本年截至 ${escapeHtml(annualRangeAsOf)}` : "本年待同步"}</small>
+      </td>
+      <td class="annual-high-cell">
+        <div class="annual-range-summary three-year-high-summary" title="${escapeHtml(threeYearHighTitle)}">
+          <span>近三年最高 <strong>${threeYearHigh.price === null ? "--" : escapeHtml(formatPrice(threeYearHigh.price))}</strong></span>
+          <small>${escapeHtml(threeYearHigh.yearsLabel)}${threeYearHigh.year ? ` · ${threeYearHigh.year}` : ""}</small>
+          <small>最高日期 ${escapeHtml(threeYearHigh.date || "--")}</small>
+        </div>
+        <div class="annual-price-range-list" aria-label="最近三年最高股价">${annualPriceColumns.high}</div>
         <small class="annual-price-range-note">前复权 · ${annualRangeAsOf ? `本年截至 ${escapeHtml(annualRangeAsOf)}` : "本年待同步"}</small>
       </td>
       <td class="numeric change-cell">
@@ -1365,15 +1399,15 @@ function render() {
 
   if (!state.codes.length) {
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="8">暂无自选股</td></tr>`;
+      <tr class="empty-row"><td colspan="9">暂无自选股</td></tr>`;
   } else if (!availableQuotes.length && state.loading) {
     elements.stockRows.innerHTML = `
       <tr class="loading-row">
-        <td colspan="8"><span class="spinner" aria-hidden="true"></span>正在读取行情</td>
+        <td colspan="9"><span class="spinner" aria-hidden="true"></span>正在读取行情</td>
       </tr>`;
   } else if (!availableQuotes.length) {
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="8">行情暂不可用</td></tr>`;
+      <tr class="empty-row"><td colspan="9">行情暂不可用</td></tr>`;
   } else if (!filteredQuotes.length) {
     const waitingForHistory = state.period === "largestDaily" && availableQuotes.some(
       (quote) => quote.historyAsOf !== shanghaiParts().day,
@@ -1386,7 +1420,7 @@ function render() {
           ? "历史指标待同步，暂无法完整判断今日异常"
           : "没有符合筛选条件的股票";
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="8">${emptyMessage}</td></tr>`;
+      <tr class="empty-row"><td colspan="9">${emptyMessage}</td></tr>`;
   } else {
     elements.stockRows.innerHTML = pageQuotes.map(rowTemplate).join("");
   }
