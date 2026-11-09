@@ -67,7 +67,7 @@ button {
 
 .header-inner,
 .app-main {
-  width: min(1120px, calc(100% - 40px));
+  width: min(1480px, calc(100% - 40px));
   margin: 0 auto;
 }
 
@@ -594,7 +594,7 @@ button:disabled {
 
 table {
   width: 100%;
-  min-width: 1300px;
+  min-width: 1180px;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -711,6 +711,8 @@ td.numeric {
 .annual-year-column,
 .annual-year-cell {
   width: 11%;
+  padding-right: 10px;
+  padding-left: 10px;
   text-align: right;
 }
 
@@ -817,16 +819,22 @@ td.numeric {
 .change-column,
 .change-cell {
   width: 9%;
+  padding-right: 6px;
+  padding-left: 6px;
 }
 
 .current-price-column,
 .current-price-cell {
   width: 7%;
+  padding-right: 6px;
+  padding-left: 6px;
 }
 
 .current-yield-column,
 .current-yield-cell {
   width: 7%;
+  padding-right: 6px;
+  padding-left: 6px;
 }
 
 .action-column,
