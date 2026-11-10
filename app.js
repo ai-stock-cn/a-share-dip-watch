@@ -336,7 +336,7 @@ const EXTRA_CODES = [
 ];
 
 const LATEST_ADDED_CODES = [
-  ...DIVIDEND_ADDED_CODES,
+  "600938",
 ];
 
 const REMOVED_CODES = new Set(["600106"]);
@@ -346,11 +346,12 @@ const DEFAULT_CODES = [
 ];
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v18",
+  watchlist: "a-share-dip-watch:watchlist:v19",
   starred: "a-share-dip-watch:starred:v1",
   groups: "a-share-dip-watch:groups:v1",
-  previousWatchlist: "a-share-dip-watch:watchlist:v17",
+  previousWatchlist: "a-share-dip-watch:watchlist:v18",
   legacyWatchlists: [
+    "a-share-dip-watch:watchlist:v17",
     "a-share-dip-watch:watchlist:v16",
     "a-share-dip-watch:watchlist:v15",
     "a-share-dip-watch:watchlist:v14",
