@@ -9,10 +9,10 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=64" />
+    <link rel="stylesheet" href="./styles.css?v=65" />
     <script defer src="./auth.js?v=2"></script>
     <script defer src="./live-market.js?v=35"></script>
-    <script defer src="./app.js?v=74"></script>
+    <script defer src="./app.js?v=75"></script>
   </head>
   <body class="auth-locked">
     <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -153,6 +153,28 @@
                 />
               </span>
             </label>
+            <div class="group-filter-control">
+              <label class="control-field group-filter-field" for="groupFilter">
+                <span>自选分组</span>
+                <select id="groupFilter" title="按自选分组查看股票">
+                  <option value="all">全部股票</option>
+                  <option value="ungrouped">未分组</option>
+                </select>
+              </label>
+              <button id="createGroupButton" class="group-control-button" type="button" title="新建自选分组">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 6.5h6l2 2h10v9.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+                  <path d="M12 12v5" /><path d="M9.5 14.5h5" />
+                </svg>
+                <span>新建分组</span>
+              </button>
+              <button id="deleteGroupButton" class="group-control-button danger" type="button" title="删除当前分组" hidden>
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" />
+                </svg>
+                <span>删除分组</span>
+              </button>
+            </div>
             <label class="star-filter-control" for="starredOnlyFilter" title="仅显示已关注的股票">
               <input id="starredOnlyFilter" type="checkbox" />
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
@@ -411,6 +433,46 @@
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
           <span>加入自选</span>
         </button>
+      </form>
+    </dialog>
+
+    <dialog id="createGroupDialog" aria-labelledby="createGroupTitle">
+      <form id="createGroupForm" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="createGroupTitle">新建自选分组</h2>
+            <p id="createGroupHint">分组保存在当前浏览器中</p>
+          </div>
+          <button id="closeCreateGroupButton" class="icon-button subtle" type="button" title="关闭" aria-label="关闭">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+          </button>
+        </div>
+        <label for="groupNameInput">分组名称</label>
+        <input id="groupNameInput" name="groupName" type="text" maxlength="20" autocomplete="off" placeholder="例如：高股息、重点观察" required />
+        <p id="groupFormError" class="form-error" role="alert"></p>
+        <button class="primary-button full-width" type="submit">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M5 12h14" /><path d="M12 5v14" /></svg>
+          <span>创建分组</span>
+        </button>
+      </form>
+    </dialog>
+
+    <dialog id="stockGroupDialog" aria-labelledby="stockGroupTitle">
+      <form id="stockGroupForm" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <h2 id="stockGroupTitle">设置股票分组</h2>
+            <p id="stockGroupSubtitle">选择要加入的分组</p>
+          </div>
+          <button id="closeStockGroupButton" class="icon-button subtle" type="button" title="关闭" aria-label="关闭">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+          </button>
+        </div>
+        <div id="stockGroupOptions" class="stock-group-options" aria-label="可选分组"></div>
+        <div class="dialog-button-row">
+          <button id="createGroupFromStockButton" class="secondary-button" type="button">新建分组</button>
+          <button class="primary-button" type="submit">保存分组</button>
+        </div>
       </form>
     </dialog>
 

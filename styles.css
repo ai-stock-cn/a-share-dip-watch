@@ -125,7 +125,8 @@ h1 {
 }
 
 .icon-button,
-.primary-button {
+.primary-button,
+.secondary-button {
   min-height: 40px;
   border-radius: 6px;
   border: 1px solid transparent;
@@ -176,6 +177,19 @@ h1 {
   border-color: var(--accent-strong);
 }
 
+.secondary-button {
+  padding: 0 15px;
+  color: var(--ink);
+  background: var(--surface);
+  border-color: var(--line-strong);
+  font-weight: 650;
+}
+
+.secondary-button:hover {
+  border-color: #b39a5a;
+  background: #faf8f1;
+}
+
 button:active {
   transform: translateY(1px);
 }
@@ -194,6 +208,7 @@ button:disabled {
 
 .icon-button svg,
 .primary-button svg,
+.secondary-button svg,
 .row-action svg {
   width: 18px;
   height: 18px;
@@ -347,6 +362,54 @@ button:disabled {
 
 .filter-group {
   flex-wrap: wrap;
+}
+
+.group-filter-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.group-control-button {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--accent);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.group-control-button:hover {
+  border-color: #9fbfb3;
+  background: #f3f8f5;
+}
+
+.group-control-button.danger {
+  color: var(--severe);
+}
+
+.group-control-button.danger:hover {
+  border-color: #e0b6b9;
+  background: var(--severe-soft);
+}
+
+.group-control-button[hidden] {
+  display: none;
+}
+
+.group-control-button svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  stroke-width: 1.8;
 }
 
 .control-field {
@@ -938,6 +1001,7 @@ td.numeric {
 .industry-tag,
 .enterprise-nature-tag,
 .market-cap-tag,
+.stock-group-button,
 .price-track {
   color: var(--ink-muted);
   font-size: 13px;
@@ -959,6 +1023,32 @@ td.numeric {
   background: var(--neutral-soft);
   color: var(--ink-muted);
   white-space: nowrap;
+}
+
+.stock-group-button {
+  padding: 1px 5px;
+  border: 1px solid #b9d1c7;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--accent);
+  background: #edf5f1;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.stock-group-button svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  stroke-width: 1.8;
+}
+
+.stock-group-button:hover {
+  border-color: var(--accent);
+  background: #e3f0ea;
 }
 
 .enterprise-nature-tag {
@@ -1425,6 +1515,62 @@ dialog form {
   padding: 22px;
 }
 
+.stock-group-options {
+  max-height: 290px;
+  padding: 2px;
+  display: grid;
+  gap: 7px;
+  overflow-y: auto;
+}
+
+.stock-group-option {
+  min-height: 42px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+  background: #fbfcfb;
+  cursor: pointer;
+}
+
+.stock-group-option:hover {
+  border-color: #b9d1c7;
+  background: #f3f8f5;
+}
+
+.stock-group-option input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: var(--accent);
+}
+
+.stock-group-option span {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-group-option small {
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.dialog-button-row {
+  margin-top: 22px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .dialog-heading {
   margin-bottom: 24px;
   justify-content: space-between;
@@ -1720,6 +1866,26 @@ noscript {
     grid-column: 1 / -1;
   }
 
+  .filter-group .group-filter-control {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .group-filter-field {
+    min-width: 0;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .group-filter-field select {
+    width: 100%;
+  }
+
+  .group-control-button.danger {
+    grid-column: 1 / -1;
+  }
+
   .filter-group .star-filter-control {
     grid-column: 1 / -1;
     justify-content: center;
@@ -1863,6 +2029,17 @@ noscript {
     width: 28px;
     height: 28px;
     opacity: 1;
+  }
+
+  .dialog-button-row {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .dialog-button-row .primary-button,
+  .dialog-button-row .secondary-button {
+    width: 100%;
+    min-height: 44px;
   }
 }
 

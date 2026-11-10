@@ -348,6 +348,7 @@ const DEFAULT_CODES = [
 const STORAGE_KEYS = {
   watchlist: "a-share-dip-watch:watchlist:v18",
   starred: "a-share-dip-watch:starred:v1",
+  groups: "a-share-dip-watch:groups:v1",
   previousWatchlist: "a-share-dip-watch:watchlist:v17",
   legacyWatchlists: [
     "a-share-dip-watch:watchlist:v16",
@@ -405,6 +406,12 @@ const STAR_ICON = `
     <path d="m12 2.7 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3.1-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9Z" />
   </svg>`;
 
+const GROUP_ICON = `
+  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 6.5h6l2 2h10v9.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+    <path d="M12 12v5" /><path d="M9.5 14.5h5" />
+  </svg>`;
+
 let toastTimer;
 let quoteRefreshTimer;
 let appInitialized = false;
@@ -424,11 +431,19 @@ const elements = {
   bollBandFilter: document.querySelector("#bollBandFilter"),
   bollPeriodFilter: document.querySelector("#bollPeriodFilter"),
   closeDialogButton: document.querySelector("#closeDialogButton"),
+  closeCreateGroupButton: document.querySelector("#closeCreateGroupButton"),
+  closeStockGroupButton: document.querySelector("#closeStockGroupButton"),
   changeHeader: document.querySelector("#changeHeader"),
   changeHeaderLabel: document.querySelector("#changeHeaderLabel"),
   changeSortButton: document.querySelector("#changeSortButton"),
   changeSortIcon: document.querySelector("#changeSortIcon"),
   confirmAddButton: document.querySelector("#confirmAddButton"),
+  createGroupButton: document.querySelector("#createGroupButton"),
+  createGroupDialog: document.querySelector("#createGroupDialog"),
+  createGroupForm: document.querySelector("#createGroupForm"),
+  createGroupFromStockButton: document.querySelector("#createGroupFromStockButton"),
+  createGroupHint: document.querySelector("#createGroupHint"),
+  deleteGroupButton: document.querySelector("#deleteGroupButton"),
   severeDeclineCount: document.querySelector("#severeDeclineCount"),
   severeDeclineShortcut: document.querySelector("#severeDeclineShortcut"),
   dividendYieldFilter: document.querySelector("#dividendYieldFilter"),
@@ -436,6 +451,9 @@ const elements = {
   enterpriseNatureFilter: document.querySelector("#enterpriseNatureFilter"),
   formError: document.querySelector("#formError"),
   gapStatusFilter: document.querySelector("#gapStatusFilter"),
+  groupFilter: document.querySelector("#groupFilter"),
+  groupFormError: document.querySelector("#groupFormError"),
+  groupNameInput: document.querySelector("#groupNameInput"),
   industryFilter: document.querySelector("#industryFilter"),
   ma250Filter: document.querySelector("#ma250Filter"),
   marketCapFilter: document.querySelector("#marketCapFilter"),
@@ -460,6 +478,10 @@ const elements = {
   starredOnlyFilter: document.querySelector("#starredOnlyFilter"),
   stockQuery: document.querySelector("#stockQuery"),
   stockRows: document.querySelector("#stockRows"),
+  stockGroupDialog: document.querySelector("#stockGroupDialog"),
+  stockGroupForm: document.querySelector("#stockGroupForm"),
+  stockGroupOptions: document.querySelector("#stockGroupOptions"),
+  stockGroupSubtitle: document.querySelector("#stockGroupSubtitle"),
   stockSuggestionPanel: document.querySelector("#stockSuggestionPanel"),
   thresholdFilter: document.querySelector("#thresholdFilter"),
   twoYearLowFilter: document.querySelector("#twoYearLowFilter"),
@@ -480,6 +502,7 @@ const state = {
   missingQuotes: 0,
   bollBand: "all",
   bollPeriod: "day",
+  activeGroupId: "all",
   dividendYieldMin: 0,
   dividendYears: "all",
   enterpriseNature: "all",
@@ -497,6 +520,9 @@ const state = {
   sortOrder: DEFAULT_SORT_ORDER,
   starredCodes: loadStarredCodes(),
   starredOnly: false,
+  stockGroups: loadStockGroups(),
+  groupDialogCode: null,
+  pendingGroupStockCode: null,
   weeklyMiddlePosition: "all",
 };
 
@@ -525,6 +551,43 @@ function loadStarredCodes() {
 
 function saveStarredCodes() {
   saveJson(STORAGE_KEYS.starred, [...state.starredCodes].sort());
+}
+
+function loadStockGroups() {
+  const saved = loadJson(STORAGE_KEYS.groups, []);
+  if (!Array.isArray(saved)) return [];
+  const seenIds = new Set();
+  const seenNames = new Set();
+  return saved.flatMap((group) => {
+    const id = String(group?.id || "").trim();
+    const name = String(group?.name || "").trim().slice(0, 20);
+    const nameKey = name.toLocaleLowerCase("zh-CN");
+    if (
+      !id || !name || ["all", "ungrouped"].includes(id) ||
+      seenIds.has(id) || seenNames.has(nameKey)
+    ) return [];
+    seenIds.add(id);
+    seenNames.add(nameKey);
+    const codes = Array.isArray(group.codes)
+      ? [...new Set(group.codes.filter((code) => /^\d{6}$/.test(code)))]
+      : [];
+    return [{ id, name, codes }];
+  });
+}
+
+function saveStockGroups() {
+  saveJson(
+    STORAGE_KEYS.groups,
+    state.stockGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      codes: [...new Set(group.codes)].sort(),
+    })),
+  );
+}
+
+function groupsForCode(code) {
+  return state.stockGroups.filter((group) => group.codes.includes(code));
 }
 
 function loadWatchlist() {
@@ -1105,6 +1168,11 @@ function rowTemplate(quote) {
     .join("");
   const quoteUrl = stockQuoteUrl(quote.code);
   const isStarred = state.starredCodes.has(quote.code);
+  const stockGroups = groupsForCode(quote.code);
+  const stockGroupText = stockGroups.length ? `分组 ${stockGroups.length}` : "加入分组";
+  const stockGroupTitle = stockGroups.length
+    ? `所属分组：${stockGroups.map((group) => group.name).join("、")}；点击修改`
+    : `将 ${quote.name} 加入自选分组`;
   const annualRangeAsOf = quote.recentAnnualPriceRanges3y.find((item) => item.current)?.asOf;
   const twoYearLow = quote.twoYearLow;
   const twoYearLowTitle = `${twoYearLow.yearsLabel}（今年+去年）的前复权最低价；最低价日期 ${twoYearLow.date || "未知"}；当前年截至 ${annualRangeAsOf || "未知"}；（当前价 ÷ 两年最低价 − 1）× 100%；升序按负值到正值排列，不取绝对值${twoYearLow.price === null ? "；两年历史数据不足" : ""}`;
@@ -1124,6 +1192,7 @@ function rowTemplate(quote) {
           <span class="industry-tag" title="同花顺申万行业：${escapeHtml(quote.industryDetail)}">${escapeHtml(quote.industry)}</span>
           <span class="enterprise-nature-tag" title="企业性质：${escapeHtml(quote.enterpriseNature)}">${escapeHtml(quote.enterpriseNature)}</span>
           <span class="market-cap-tag" title="${escapeHtml(marketCapTitle)}">市值 ${escapeHtml(marketCapText)}</span>
+          <button class="stock-group-button" type="button" data-edit-groups="${escapeHtml(quote.code)}" title="${escapeHtml(stockGroupTitle)}" aria-label="${escapeHtml(stockGroupTitle)}">${GROUP_ICON}<span>${escapeHtml(stockGroupText)}</span></button>
           <span class="price-track ${track?.className || "unknown"}" title="${escapeHtml(trackTitle)}">${escapeHtml(trackText)}</span>
         </div>
         <div class="boll-track-list" aria-label="BOLL 日周月轨道">${bollTrackRows}</div>
@@ -1279,7 +1348,42 @@ function renderEnterpriseNatureOptions(quotes) {
   elements.enterpriseNatureFilter.value = state.enterpriseNature;
 }
 
+function renderGroupOptions() {
+  const validCodes = new Set(state.codes);
+  const activeGroupExists = state.stockGroups.some(
+    (group) => group.id === state.activeGroupId,
+  );
+  if (!["all", "ungrouped"].includes(state.activeGroupId) && !activeGroupExists) {
+    state.activeGroupId = "all";
+  }
+  const groupedCodes = new Set(
+    state.stockGroups.flatMap((group) => group.codes.filter((code) => validCodes.has(code))),
+  );
+  const ungroupedCount = state.codes.filter((code) => !groupedCodes.has(code)).length;
+  elements.groupFilter.innerHTML = [
+    `<option value="all">全部股票（${state.codes.length}）</option>`,
+    `<option value="ungrouped">未分组（${ungroupedCount}）</option>`,
+    ...state.stockGroups.map((group) => {
+      const count = group.codes.filter((code) => validCodes.has(code)).length;
+      return `<option value="${escapeHtml(group.id)}">${escapeHtml(group.name)}（${count}）</option>`;
+    }),
+  ].join("");
+  elements.groupFilter.value = state.activeGroupId;
+  elements.deleteGroupButton.hidden = !activeGroupExists;
+  if (activeGroupExists) {
+    const group = state.stockGroups.find((item) => item.id === state.activeGroupId);
+    elements.deleteGroupButton.title = `删除“${group.name}”分组`;
+  }
+}
+
 function matchesFilters(quote) {
+  if (state.activeGroupId === "ungrouped" && groupsForCode(quote.code).length) {
+    return false;
+  }
+  if (!["all", "ungrouped"].includes(state.activeGroupId)) {
+    const activeGroup = state.stockGroups.find((group) => group.id === state.activeGroupId);
+    if (!activeGroup || !activeGroup.codes.includes(quote.code)) return false;
+  }
   if (state.starredOnly && !state.starredCodes.has(quote.code)) return false;
   const searchQuery = normalizeStockSearch(state.searchQuery);
   if (searchQuery) {
@@ -1386,6 +1490,7 @@ function render() {
   );
   renderIndustryOptions(availableQuotes);
   renderEnterpriseNatureOptions(availableQuotes);
+  renderGroupOptions();
   const filteredQuotes = sortQuotes(availableQuotes.filter(matchesFilters));
   const totalPages = Math.max(1, Math.ceil(filteredQuotes.length / state.pageSize));
   state.page = Math.min(state.page, totalPages);
@@ -1407,15 +1512,19 @@ function render() {
     const waitingForHistory = state.period === "largestDaily" && availableQuotes.some(
       (quote) => quote.historyAsOf !== shanghaiParts().day,
     );
-    const emptyMessage = state.searchQuery.trim()
-      ? "没有找到匹配的股票"
-      : state.starredOnly
-        ? "暂无符合当前条件的星标股票"
-        : waitingForHistory
-          ? "历史指标待同步，暂无法完整判断今日异常"
-          : "没有符合筛选条件的股票";
+    let emptyMessage = "没有符合筛选条件的股票";
+    if (waitingForHistory) emptyMessage = "历史指标待同步，暂无法完整判断今日异常";
+    if (state.starredOnly) emptyMessage = "暂无符合当前条件的星标股票";
+    if (!["all", "ungrouped"].includes(state.activeGroupId)) {
+      const groupName = state.stockGroups.find(
+        (group) => group.id === state.activeGroupId,
+      )?.name || "当前";
+      emptyMessage = `“${groupName}”分组暂无符合条件的股票`;
+    }
+    if (state.activeGroupId === "ungrouped") emptyMessage = "当前没有未分组的股票";
+    if (state.searchQuery.trim()) emptyMessage = "没有找到匹配的股票";
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="10">${emptyMessage}</td></tr>`;
+      <tr class="empty-row"><td colspan="10">${escapeHtml(emptyMessage)}</td></tr>`;
   } else {
     elements.stockRows.innerHTML = pageQuotes.map(rowTemplate).join("");
   }
@@ -1423,6 +1532,9 @@ function render() {
   const filterMeta = { ...FILTER_META[state.period] };
   if (state.period === "daily" && !allToday) filterMeta.title = "行情表现（含历史或待更新数据）";
   if (state.period === "largestDaily") filterMeta.title = "今日近3月异常（已同步历史数据）";
+  if (state.activeGroupId === "ungrouped") filterMeta.title += " · 未分组";
+  const activeGroup = state.stockGroups.find((group) => group.id === state.activeGroupId);
+  if (activeGroup) filterMeta.title += ` · ${activeGroup.name}`;
   elements.watchlistTitle.textContent = filterMeta.title;
   elements.changeHeaderLabel.textContent = filterMeta.header;
   elements.bollBandFilter.value = state.bollBand;
@@ -1722,6 +1834,146 @@ function closeAddDialog() {
   elements.addDialog.close();
 }
 
+function createGroupId() {
+  return `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function openCreateGroupDialog(stockCode = null) {
+  state.pendingGroupStockCode = stockCode;
+  elements.createGroupForm.reset();
+  elements.groupFormError.textContent = "";
+  const quote = stockCode ? quoteFor(stockCode) : null;
+  elements.createGroupHint.textContent = quote
+    ? `创建后会自动把 ${quote.name} 加入该分组`
+    : "分组保存在当前浏览器中";
+  elements.createGroupDialog.showModal();
+  window.setTimeout(() => elements.groupNameInput.focus(), 30);
+}
+
+function closeCreateGroupDialog() {
+  state.pendingGroupStockCode = null;
+  elements.createGroupDialog.close();
+}
+
+function createStockGroup(event) {
+  event.preventDefault();
+  const name = elements.groupNameInput.value.trim();
+  elements.groupFormError.textContent = "";
+  if (!name) {
+    elements.groupFormError.textContent = "请输入分组名称";
+    return;
+  }
+  const duplicate = state.stockGroups.some(
+    (group) => group.name.toLocaleLowerCase("zh-CN") === name.toLocaleLowerCase("zh-CN"),
+  );
+  if (duplicate) {
+    elements.groupFormError.textContent = "已经有同名分组";
+    return;
+  }
+  const stockCode = state.pendingGroupStockCode;
+  const group = {
+    id: createGroupId(),
+    name: name.slice(0, 20),
+    codes: stockCode && state.codes.includes(stockCode) ? [stockCode] : [],
+  };
+  state.stockGroups.push(group);
+  saveStockGroups();
+  state.pendingGroupStockCode = null;
+  elements.createGroupDialog.close();
+  render();
+  const quote = stockCode ? quoteFor(stockCode) : null;
+  showToast(quote ? `已新建“${group.name}”并加入 ${quote.name}` : `已新建“${group.name}”分组`);
+}
+
+function renderStockGroupOptions(code) {
+  elements.stockGroupOptions.innerHTML = state.stockGroups.map((group) => {
+    const checked = group.codes.includes(code) ? " checked" : "";
+    const count = group.codes.filter((item) => state.codes.includes(item)).length;
+    return `
+      <label class="stock-group-option">
+        <input type="checkbox" name="stockGroup" value="${escapeHtml(group.id)}"${checked} />
+        <span>${escapeHtml(group.name)}</span>
+        <small>${count} 只</small>
+      </label>`;
+  }).join("");
+}
+
+function openStockGroupDialog(code) {
+  if (!state.codes.includes(code)) return;
+  if (!state.stockGroups.length) {
+    openCreateGroupDialog(code);
+    return;
+  }
+  const quote = quoteFor(code);
+  state.groupDialogCode = code;
+  elements.stockGroupSubtitle.textContent = `${quote?.name || code} · 可同时加入多个分组`;
+  renderStockGroupOptions(code);
+  elements.stockGroupDialog.showModal();
+}
+
+function closeStockGroupDialog() {
+  state.groupDialogCode = null;
+  elements.stockGroupDialog.close();
+}
+
+function saveStockGroupMembership(event) {
+  event.preventDefault();
+  const code = state.groupDialogCode;
+  if (!code || !state.codes.includes(code)) {
+    closeStockGroupDialog();
+    return;
+  }
+  const selectedIds = new Set(
+    [...elements.stockGroupOptions.querySelectorAll('input[name="stockGroup"]:checked')]
+      .map((input) => input.value),
+  );
+  state.stockGroups.forEach((group) => {
+    const members = new Set(group.codes);
+    if (selectedIds.has(group.id)) members.add(code);
+    else members.delete(code);
+    group.codes = [...members];
+  });
+  saveStockGroups();
+  const quote = quoteFor(code);
+  const selectedCount = selectedIds.size;
+  state.groupDialogCode = null;
+  elements.stockGroupDialog.close();
+  render();
+  showToast(selectedCount
+    ? `${quote?.name || code} 已加入 ${selectedCount} 个分组`
+    : `${quote?.name || code} 已移出全部分组`);
+}
+
+function createGroupForCurrentStock() {
+  const code = state.groupDialogCode;
+  const selectedIds = new Set(
+    [...elements.stockGroupOptions.querySelectorAll('input[name="stockGroup"]:checked')]
+      .map((input) => input.value),
+  );
+  state.stockGroups.forEach((group) => {
+    const members = new Set(group.codes);
+    if (selectedIds.has(group.id)) members.add(code);
+    else members.delete(code);
+    group.codes = [...members];
+  });
+  saveStockGroups();
+  elements.stockGroupDialog.close();
+  state.groupDialogCode = null;
+  openCreateGroupDialog(code);
+}
+
+function deleteActiveGroup() {
+  const group = state.stockGroups.find((item) => item.id === state.activeGroupId);
+  if (!group) return;
+  if (!window.confirm(`确认删除“${group.name}”分组？股票仍会保留在自选列表中。`)) return;
+  state.stockGroups = state.stockGroups.filter((item) => item.id !== group.id);
+  state.activeGroupId = "all";
+  saveStockGroups();
+  state.page = 1;
+  render();
+  showToast(`已删除“${group.name}”分组`);
+}
+
 function resolveStockQuery(query) {
   const normalizedQuery = normalizeStockSearch(query);
   const matches = findMatchingStocks(query);
@@ -1776,6 +2028,13 @@ function removeStock(code) {
   const quote = quoteFor(code);
   state.codes = state.codes.filter((item) => item !== code);
   if (state.starredCodes.delete(code)) saveStarredCodes();
+  let groupsChanged = false;
+  state.stockGroups.forEach((group) => {
+    if (!group.codes.includes(code)) return;
+    group.codes = group.codes.filter((item) => item !== code);
+    groupsChanged = true;
+  });
+  if (groupsChanged) saveStockGroups();
   saveJson(STORAGE_KEYS.watchlist, state.codes);
   render();
   showToast(`已移除 ${quote?.name || code}`);
@@ -1815,6 +2074,7 @@ function closePriceTrackFilterMenu() {
 }
 
 function resetFilters() {
+  state.activeGroupId = "all";
   state.period = "daily";
   state.threshold = 0;
   state.twoYearLowRange = "all";
@@ -1839,6 +2099,7 @@ function resetFilters() {
 }
 
 function showDeclineShortcut(threshold) {
+  state.activeGroupId = "all";
   state.period = "daily";
   state.threshold = threshold;
   state.twoYearLowRange = "all";
@@ -1869,6 +2130,13 @@ function showDeclineShortcut(threshold) {
 elements.addButton.addEventListener("click", openAddDialog);
 elements.closeDialogButton.addEventListener("click", closeAddDialog);
 elements.addForm.addEventListener("submit", addStock);
+elements.createGroupButton.addEventListener("click", () => openCreateGroupDialog());
+elements.closeCreateGroupButton.addEventListener("click", closeCreateGroupDialog);
+elements.createGroupForm.addEventListener("submit", createStockGroup);
+elements.closeStockGroupButton.addEventListener("click", closeStockGroupDialog);
+elements.stockGroupForm.addEventListener("submit", saveStockGroupMembership);
+elements.createGroupFromStockButton.addEventListener("click", createGroupForCurrentStock);
+elements.deleteGroupButton.addEventListener("click", deleteActiveGroup);
 elements.refreshButton.addEventListener("click", refresh);
 elements.resetFiltersButton.addEventListener("click", resetFilters);
 elements.severeDeclineShortcut.addEventListener("click", () => {
@@ -1952,6 +2220,14 @@ elements.enterpriseNatureFilter.addEventListener("change", (event) => {
   state.page = 1;
   render();
 });
+elements.groupFilter.addEventListener("change", (event) => {
+  const value = event.target.value;
+  const valid = ["all", "ungrouped"].includes(value) ||
+    state.stockGroups.some((group) => group.id === value);
+  state.activeGroupId = valid ? value : "all";
+  state.page = 1;
+  render();
+});
 elements.stockListSearch.addEventListener("input", (event) => {
   state.searchQuery = event.target.value;
   state.page = 1;
@@ -2027,11 +2303,28 @@ elements.stockRows.addEventListener("click", (event) => {
     toggleStar(starButton.dataset.toggleStar);
     return;
   }
+  const groupButton = event.target.closest("[data-edit-groups]");
+  if (groupButton) {
+    openStockGroupDialog(groupButton.dataset.editGroups);
+    return;
+  }
   const removeButton = event.target.closest("[data-remove]");
   if (removeButton) removeStock(removeButton.dataset.remove);
 });
 elements.addDialog.addEventListener("click", (event) => {
   if (event.target === elements.addDialog) closeAddDialog();
+});
+elements.createGroupDialog.addEventListener("click", (event) => {
+  if (event.target === elements.createGroupDialog) closeCreateGroupDialog();
+});
+elements.createGroupDialog.addEventListener("close", () => {
+  state.pendingGroupStockCode = null;
+});
+elements.stockGroupDialog.addEventListener("click", (event) => {
+  if (event.target === elements.stockGroupDialog) closeStockGroupDialog();
+});
+elements.stockGroupDialog.addEventListener("close", () => {
+  state.groupDialogCode = null;
 });
 elements.stockSuggestionPanel.addEventListener("click", (event) => {
   const button = event.target.closest("[data-stock-suggestion]");
