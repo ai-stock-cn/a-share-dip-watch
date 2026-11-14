@@ -1180,6 +1180,21 @@ td.numeric {
   font-variant-numeric: tabular-nums;
 }
 
+.recent-gap-link {
+  color: var(--ink-muted);
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.recent-gap-link:hover,
+.recent-gap-link:focus-visible {
+  background: color-mix(in srgb, var(--positive) 8%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--positive) 12%, transparent);
+  outline: none;
+}
+
 .recent-gap-main {
   display: flex;
   flex-wrap: wrap;

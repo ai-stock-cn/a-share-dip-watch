@@ -894,8 +894,10 @@ function recentGapMarkup(quote) {
   const directionMark = gap.direction === "up" ? "↑" : "↓";
   const headingText = gap.filled ? "最近已补缺口" : "最近未补缺口";
   const statusText = gap.filled ? `已补缺 ${gap.filledDate}` : `未补缺 · 截至 ${gap.asOf}`;
-  const title = `${gap.date} 形成${directionText}缺口 ${formatPrice(gap.lower)}–${formatPrice(gap.upper)}；${gap.filled ? `于 ${gap.filledDate} 完全回补` : `截至 ${gap.asOf} 尚未完全回补`}；前复权日 K 口径`;
-  return `<div class="recent-gap ${gap.direction} ${gap.filled ? "filled" : "unfilled"}" title="${escapeHtml(title)}"><span class="recent-gap-main"><strong>${headingText}</strong><b>${directionMark}${directionText}</b><span class="recent-gap-range">${escapeHtml(formatPrice(gap.lower))}–${escapeHtml(formatPrice(gap.upper))}</span></span><small>形成 ${escapeHtml(gap.date)} · ${escapeHtml(statusText)}</small></div>`;
+  const title = `${gap.date} 形成${directionText}缺口 ${formatPrice(gap.lower)}–${formatPrice(gap.upper)}；${gap.filled ? `于 ${gap.filledDate} 完全回补` : `截至 ${gap.asOf} 尚未完全回补`}；前复权日 K 口径；点击在雪球日 K 查看该日期附近行情`;
+  const gapUrl = stockQuoteUrl(quote.code, gap.date);
+  const ariaLabel = `在雪球日 K 查看 ${quote.name} ${gap.date} 形成的${directionText}缺口`;
+  return `<a class="recent-gap recent-gap-link ${gap.direction} ${gap.filled ? "filled" : "unfilled"}" href="${escapeHtml(gapUrl)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(title)}" aria-label="${escapeHtml(ariaLabel)}"><span class="recent-gap-main"><strong>${headingText}</strong><b>${directionMark}${directionText}</b><span class="recent-gap-range">${escapeHtml(formatPrice(gap.lower))}–${escapeHtml(formatPrice(gap.upper))}</span></span><small>形成 ${escapeHtml(gap.date)} · ${escapeHtml(statusText)}</small></a>`;
 }
 
 function twoYearLowSummary(annualLows, currentPrice) {
@@ -1020,12 +1022,20 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function stockQuoteUrl(code) {
+function stockQuoteUrl(code, focusDate = null) {
   const exchange = code.startsWith("6") ? "SH" : "SZ";
   const chartParams = new URLSearchParams({
     period: "day",
     indicator: "boll",
   });
+  if (/^\d{4}-\d{2}-\d{2}$/.test(focusDate || "")) {
+    const begin = Date.parse(`${focusDate}T15:00:00+08:00`);
+    if (Number.isFinite(begin)) {
+      chartParams.set("begin", String(begin));
+      chartParams.set("type", "before");
+      chartParams.set("count", "-60");
+    }
+  }
   return `https://xueqiu.com/S/${exchange}${code}?${chartParams}`;
 }
 
