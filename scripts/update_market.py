@@ -35,7 +35,7 @@ HISTORICAL_DIVIDEND_YEARS = 10
 BOLL_PERIOD = 20
 BOLL_STD_MULTIPLIER = 2
 BOLL_BASIS = "day_month_tencent_week_xueqiu_qfq_v1"
-GAP_BASIS = "qfq_daily_ohlc_v1"
+GAP_BASIS = "qfq_daily_ohlc_v2"
 MA250_PERIOD = 250
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 RECENT_ANNUAL_RANGE_BASIS = "qfq_daily_low_high_v2"
@@ -828,6 +828,7 @@ def recent_gap_from_tencent_lines(lines: list) -> dict | None:
     if len(rows) < 2:
         return None
     as_of = rows[-1][0].isoformat()
+    latest_filled_gap = None
     for index in range(len(rows) - 1, 0, -1):
         trade_day, current_high, current_low = rows[index]
         _, previous_high, previous_low = rows[index - 1]
@@ -855,7 +856,7 @@ def recent_gap_from_tencent_lines(lines: list) -> dict | None:
             if filled:
                 filled_date = later_day.isoformat()
                 break
-        return {
+        gap = {
             "direction": direction,
             "lower": round(lower, 4),
             "upper": round(upper, 4),
@@ -864,7 +865,14 @@ def recent_gap_from_tencent_lines(lines: list) -> dict | None:
             "filledDate": filled_date,
             "asOf": as_of,
         }
-    return None
+        # A newer, already-filled gap must not hide an older gap that remains
+        # open. Prefer the most recent outstanding gap and only fall back to
+        # the latest filled gap when no unfilled gap exists in the window.
+        if filled_date is None:
+            return gap
+        if latest_filled_gap is None:
+            latest_filled_gap = gap
+    return latest_filled_gap
 
 
 def history_closes_from_tencent(lines: list) -> list[tuple[datetime, float]]:

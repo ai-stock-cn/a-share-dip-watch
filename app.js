@@ -833,7 +833,7 @@ function normalizeAnnualPriceRanges(stock) {
 }
 
 function normalizeRecentGap(stock) {
-  if (stock.gapBasis !== "qfq_daily_ohlc_v1") return null;
+  if (stock.gapBasis !== "qfq_daily_ohlc_v2") return null;
   const gap = stock.recentGap;
   if (!gap || !["up", "down"].includes(gap.direction)) return null;
   const lower = numberOrNull(gap.lower);
@@ -885,16 +885,17 @@ function annualYearRangeCells(quote, twoYearLow, twoYearLowTitle) {
 function recentGapMarkup(quote) {
   const gap = quote.recentGap;
   if (!gap) {
-    const note = quote.gapBasis === "qfq_daily_ohlc_v1"
+    const note = quote.gapBasis === "qfq_daily_ohlc_v2"
       ? "近 520 个交易日无完整缺口"
       : "等待前复权日 K 同步";
     return `<div class="recent-gap unknown" title="${escapeHtml(note)}"><span class="recent-gap-main"><strong>最近缺口</strong><span>--</span></span><small>${escapeHtml(note)}</small></div>`;
   }
   const directionText = gap.direction === "up" ? "向上" : "向下";
   const directionMark = gap.direction === "up" ? "↑" : "↓";
+  const headingText = gap.filled ? "最近已补缺口" : "最近未补缺口";
   const statusText = gap.filled ? `已补缺 ${gap.filledDate}` : `未补缺 · 截至 ${gap.asOf}`;
   const title = `${gap.date} 形成${directionText}缺口 ${formatPrice(gap.lower)}–${formatPrice(gap.upper)}；${gap.filled ? `于 ${gap.filledDate} 完全回补` : `截至 ${gap.asOf} 尚未完全回补`}；前复权日 K 口径`;
-  return `<div class="recent-gap ${gap.direction} ${gap.filled ? "filled" : "unfilled"}" title="${escapeHtml(title)}"><span class="recent-gap-main"><strong>最近缺口</strong><b>${directionMark}${directionText}</b><span class="recent-gap-range">${escapeHtml(formatPrice(gap.lower))}–${escapeHtml(formatPrice(gap.upper))}</span></span><small>形成 ${escapeHtml(gap.date)} · ${escapeHtml(statusText)}</small></div>`;
+  return `<div class="recent-gap ${gap.direction} ${gap.filled ? "filled" : "unfilled"}" title="${escapeHtml(title)}"><span class="recent-gap-main"><strong>${headingText}</strong><b>${directionMark}${directionText}</b><span class="recent-gap-range">${escapeHtml(formatPrice(gap.lower))}–${escapeHtml(formatPrice(gap.upper))}</span></span><small>形成 ${escapeHtml(gap.date)} · ${escapeHtml(statusText)}</small></div>`;
 }
 
 function twoYearLowSummary(annualLows, currentPrice) {
@@ -1432,7 +1433,7 @@ function matchesFilters(quote) {
     return false;
   }
   if (state.gapStatus !== "all") {
-    if (quote.gapBasis !== "qfq_daily_ohlc_v1") return false;
+    if (quote.gapBasis !== "qfq_daily_ohlc_v2") return false;
     if (state.gapStatus === "none" && quote.recentGap !== null) return false;
     if (state.gapStatus === "unfilled" && (!quote.recentGap || quote.recentGap.filled)) return false;
     if (state.gapStatus === "filled" && (!quote.recentGap || !quote.recentGap.filled)) return false;

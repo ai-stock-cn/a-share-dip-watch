@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="./styles.css?v=65" />
     <script defer src="./auth.js?v=2"></script>
     <script defer src="./live-market.js?v=35"></script>
-    <script defer src="./app.js?v=76"></script>
+    <script defer src="./app.js?v=77"></script>
   </head>
   <body class="auth-locked">
     <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -228,7 +228,7 @@
                 <option value="20">0～+20%</option>
               </select>
             </label>
-            <label class="control-field gap-status-filter-field" for="gapStatusFilter" title="按最近 520 个交易日内最近一次前复权日 K 缺口的补缺状态筛选；与其他筛选条件同时生效">
+            <label class="control-field gap-status-filter-field" for="gapStatusFilter" title="按最近 520 个交易日的前复权日 K 缺口筛选：存在未补缺口时优先判断最近的未补缺口；全部已补时使用最近已补缺口；与其他筛选条件同时生效">
               <span>缺口状态</span>
               <select id="gapStatusFilter">
                 <option value="all">全部</option>
