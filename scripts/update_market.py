@@ -35,7 +35,8 @@ HISTORICAL_DIVIDEND_YEARS = 10
 BOLL_PERIOD = 20
 BOLL_STD_MULTIPLIER = 2
 BOLL_BASIS = "day_month_tencent_week_xueqiu_qfq_v1"
-GAP_BASIS = "qfq_daily_ohlc_v2"
+GAP_HISTORY_LIMIT = 250
+GAP_BASIS = "qfq_daily_ohlc_v3"
 MA250_PERIOD = 250
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
 RECENT_ANNUAL_RANGE_BASIS = "qfq_daily_low_high_v2"
@@ -825,6 +826,9 @@ def recent_gap_from_tencent_lines(lines: list) -> dict | None:
         by_day[trade_day] = (high, low)
 
     rows = [(trade_day, *values) for trade_day, values in sorted(by_day.items())]
+    # Keep one extra prior trading day so a gap formed on the first day of the
+    # one-year window can still be compared with the preceding session.
+    rows = rows[-(GAP_HISTORY_LIMIT + 1):]
     if len(rows) < 2:
         return None
     as_of = rows[-1][0].isoformat()
