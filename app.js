@@ -757,6 +757,7 @@ function quoteFor(code) {
     ),
     dividendPerShare: numberOrNull(stock.dividendPerShare),
     dividendYear: numberOrNull(stock.dividendYear),
+    latestFillTarget: normalizeLatestFillTarget(stock),
     consecutiveDividendYears: numberOrNull(stock.consecutiveDividendYears),
     historicalMaxDividendYield10y: numberOrNull(
       stock.historicalMaxDividendYield10y,
@@ -853,6 +854,21 @@ function normalizeRecentGap(stock) {
   };
 }
 
+function normalizeLatestFillTarget(stock) {
+  const target = stock.latestFillTarget;
+  const targetPrice = numberOrNull(target?.targetPrice);
+  const dividendPerShare = numberOrNull(target?.dividendPerShare);
+  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(target?.exDividendDate || "");
+  if (target?.basis !== "latest_ex_dividend_previous_unadjusted_close_v1" ||
+      !(targetPrice > 0) || !validDate) return null;
+  return {
+    targetPrice,
+    exDividendDate: target.exDividendDate,
+    dividendPerShare,
+    plan: typeof target.plan === "string" ? target.plan : "",
+  };
+}
+
 function annualYearRangeCells(quote, twoYearLow, twoYearLowTitle) {
   return quote.recentAnnualPriceRanges3y.map((item) => {
     const available = Number.isFinite(item.lowPrice) && item.lowPrice > 0 &&
@@ -898,6 +914,27 @@ function recentGapMarkup(quote) {
   const gapUrl = stockQuoteUrl(quote.code, gap.date);
   const ariaLabel = `在雪球日 K 查看 ${quote.name} ${gap.date} 形成的${directionText}缺口`;
   return `<a class="recent-gap recent-gap-link ${gap.direction} ${gap.filled ? "filled" : "unfilled"}" href="${escapeHtml(gapUrl)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(title)}" aria-label="${escapeHtml(ariaLabel)}"><span class="recent-gap-main"><strong>${headingText}</strong><b>${directionMark}${directionText}</b><span class="recent-gap-range">${escapeHtml(formatPrice(gap.lower))}–${escapeHtml(formatPrice(gap.upper))}</span></span><small>形成 ${escapeHtml(gap.date)} · ${escapeHtml(statusText)}</small></a>`;
+}
+
+function latestFillTargetMarkup(quote) {
+  const target = quote.latestFillTarget;
+  if (!target) {
+    return `<div class="latest-fill-target unknown" title="等待最近除权除息与未复权收盘价同步"><span><strong>最近填权价</strong><b>--</b></span><small>距填权 --</small></div>`;
+  }
+  const distancePct = Number.isFinite(quote.price) && quote.price > 0
+    ? (quote.price / target.targetPrice - 1) * 100
+    : null;
+  const statusClass = Number.isFinite(distancePct)
+    ? distancePct >= 0 ? "filled" : "unfilled"
+    : "unknown";
+  const statusText = Number.isFinite(distancePct) && distancePct >= 0
+    ? "现价已达"
+    : "现价未达";
+  const dividendText = Number.isFinite(target.dividendPerShare) && target.dividendPerShare > 0
+    ? `；本次税前现金分红 ${formatPrice(target.dividendPerShare)}/股`
+    : "";
+  const title = `最近除权除息日 ${target.exDividendDate}；填权目标价采用除权除息前一交易日未复权收盘价 ${formatPrice(target.targetPrice)}；现价 ${formatPrice(quote.price)}；距离按（当前价 ÷ 填权目标价 − 1）× 100% = ${formatPercent(distancePct)}${dividendText}${target.plan ? `；方案：${target.plan}` : ""}`;
+  return `<div class="latest-fill-target ${statusClass}" title="${escapeHtml(title)}"><span><strong>最近填权价</strong><b>${escapeHtml(formatPrice(target.targetPrice))}</b></span><small>距填权 <strong>${escapeHtml(formatPercent(distancePct))}</strong> · ${escapeHtml(statusText)} · 除权 ${escapeHtml(target.exDividendDate)}</small></div>`;
 }
 
 function twoYearLowSummary(annualLows, currentPrice) {
@@ -1133,6 +1170,7 @@ function rowTemplate(quote) {
     ? `MA250（最近 250 个交易日前复权收盘价均值）：(现价 ${formatPrice(quote.price)} - 年线 ${formatBollPrice(quote.ma250)}) ÷ 年线 ${formatBollPrice(quote.ma250)} = ${formatBollPercent(ma250Distance)}；按带正负号的原始值筛选和排序，不取绝对值`
     : "MA250 暂无数据";
   const recentGapHtml = recentGapMarkup(quote);
+  const latestFillTargetHtml = latestFillTargetMarkup(quote);
   const historicalYieldText = Number.isFinite(
     quote.historicalMaxDividendYield10y,
   )
@@ -1219,6 +1257,7 @@ function rowTemplate(quote) {
           <span class="ma250-level ${ma250PositionClass}" title="${escapeHtml(ma250Title)}">MA250 <strong>${escapeHtml(formatBollPrice(quote.ma250))}</strong> · 距年线 <strong>${escapeHtml(formatBollPercent(ma250Distance))}</strong></span>
         </div>
         ${recentGapHtml}
+        ${latestFillTargetHtml}
       </td>
       <td class="weekly-boll-cell">
         <div class="weekly-boll-levels" title="${escapeHtml(weeklyBollTitle)}" aria-label="${escapeHtml(weeklyBollTitle)}">

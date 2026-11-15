@@ -39,6 +39,7 @@ GAP_HISTORY_LIMIT = 250
 GAP_BASIS = "qfq_daily_ohlc_v3"
 MA250_PERIOD = 250
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
+FILL_TARGET_BASIS = "latest_ex_dividend_previous_unadjusted_close_v1"
 RECENT_ANNUAL_RANGE_BASIS = "qfq_daily_low_high_v2"
 RECENT_ANNUAL_RANGE_HISTORY_LIMIT = 1000
 RECENT_ANNUAL_RANGE_MAX_AGE_SECONDS = 60 * 60
@@ -57,6 +58,7 @@ def request_json(
     params: dict[str, object],
     retries: int = 4,
     referer: str = "https://quote.eastmoney.com/",
+    timeout: float = 35,
 ) -> dict:
     query = urllib.parse.urlencode(params)
     request = urllib.request.Request(
@@ -65,7 +67,7 @@ def request_json(
     )
     for attempt in range(retries):
         try:
-            with urllib.request.urlopen(request, timeout=35) as response:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
                 return json.load(response)
         except Exception:
             if attempt == retries - 1:
@@ -1312,7 +1314,11 @@ def boll_bands_from_values(values: list[float]) -> dict[str, float] | None:
 
 def load_fresh_dividend_cache(
     fiscal_year: int, codes: list[str]
-) -> tuple[dict[str, float], dict[str, dict[str, float]]] | None:
+) -> tuple[
+    dict[str, float],
+    dict[str, dict[str, float]],
+    dict[str, dict],
+] | None:
     if not DIVIDEND_PATH.exists():
         return None
     try:
@@ -1325,7 +1331,11 @@ def load_fresh_dividend_cache(
             and age < DIVIDEND_MAX_AGE_SECONDS
         ):
             annual_payload = payload.get("annualDividends")
-            if not isinstance(annual_payload, dict):
+            fill_targets_payload = payload.get("latestFillTargets")
+            if (
+                not isinstance(annual_payload, dict)
+                or not isinstance(fill_targets_payload, dict)
+            ):
                 return None
             totals = {
                 key: float(value) for key, value in payload["dividends"].items()
@@ -1338,15 +1348,89 @@ def load_fresh_dividend_cache(
                 for code, years in annual_payload.items()
                 if isinstance(years, dict)
             }
-            return totals, annual
+            fill_targets = {
+                code: target
+                for code, target in fill_targets_payload.items()
+                if isinstance(target, dict)
+            }
+            return totals, annual, fill_targets
     except (KeyError, TypeError, ValueError, json.JSONDecodeError):
         return None
     return None
 
 
+def fetch_unadjusted_fill_target(code: str, ex_dividend_date: str) -> float:
+    ex_day = datetime.strptime(ex_dividend_date, "%Y-%m-%d").date()
+    start_day = ex_day - timedelta(days=20)
+    symbol = f"sh{code}" if code.startswith("6") else f"sz{code}"
+    payload = request_json(
+        "https://web.ifzq.gtimg.cn/appstock/app/kline/kline",
+        {
+            "param": (
+                f"{symbol},day,{start_day.isoformat()},"
+                f"{ex_day.isoformat()},30"
+            )
+        },
+        retries=1,
+        referer="https://gu.qq.com/",
+        timeout=10,
+    )
+    stock_payload = (payload.get("data") or {}).get(symbol) or {}
+    lines = stock_payload.get("day") or []
+    prior_rows: list[tuple[str, float]] = []
+    for line in lines:
+        if not isinstance(line, list) or len(line) < 3:
+            continue
+        trade_day = str(line[0])
+        close = number_or_none(line[2])
+        if trade_day < ex_dividend_date and close is not None and close > 0:
+            prior_rows.append((trade_day, close))
+    if not prior_rows:
+        raise RuntimeError("no unadjusted close before ex-dividend date")
+    return round(max(prior_rows, key=lambda row: row[0])[1], 4)
+
+
+def fetch_latest_fill_targets(latest_events: dict[str, dict]) -> dict[str, dict]:
+    targets: dict[str, dict] = {}
+    if not latest_events:
+        return targets
+    with ThreadPoolExecutor(max_workers=12) as executor:
+        futures = {
+            executor.submit(
+                fetch_unadjusted_fill_target,
+                code,
+                event["exDividendDate"],
+            ): code
+            for code, event in latest_events.items()
+        }
+        completed = 0
+        for future in as_completed(futures):
+            code = futures[future]
+            event = latest_events[code]
+            completed += 1
+            try:
+                target_price = future.result()
+                targets[code] = {
+                    "targetPrice": target_price,
+                    "exDividendDate": event["exDividendDate"],
+                    "dividendPerShare": event.get("dividendPerShare"),
+                    "plan": event.get("plan") or "",
+                    "basis": FILL_TARGET_BASIS,
+                }
+            except Exception as error:
+                print(f"Fill target warning for {code}: {error}", flush=True)
+            if completed % 25 == 0 or completed == len(futures):
+                print(
+                    f"Fill target progress: {completed} requested, "
+                    f"{len(targets)} available",
+                    flush=True,
+                )
+    return targets
+
+
 def fetch_dividends(
     fiscal_year: int, codes: list[str]
-) -> tuple[dict[str, float], dict[str, dict[str, float]]]:
+) -> tuple[dict[str, float], dict[str, dict[str, float]], dict[str, dict]]:
     cached = load_fresh_dividend_cache(fiscal_year, codes)
     if cached is not None:
         return cached
@@ -1361,6 +1445,8 @@ def fetch_dividends(
     )
     seen: set[tuple[str, str, str, str]] = set()
     found_target_year = False
+    latest_events: dict[str, dict] = {}
+    today = datetime.now(ZoneInfo("Asia/Shanghai")).date()
 
     for index, requested_code in enumerate(codes, start=1):
         payload = request_json(
@@ -1381,14 +1467,39 @@ def fetch_dividends(
         rows = result.get("data") or []
         for row in rows:
             report_date = str(row.get("REPORT_DATE") or "")
+            code = str(row.get("SECURITY_CODE") or "")
+            if len(code) != 6 or code not in totals:
+                continue
+            cash_per_ten = number_or_none(row.get("PRETAX_BONUS_RMB"))
+            ex_dividend_date = str(row.get("EX_DIVIDEND_DATE") or "")[:10]
+            try:
+                ex_dividend_day = datetime.strptime(
+                    ex_dividend_date,
+                    "%Y-%m-%d",
+                ).date()
+            except ValueError:
+                ex_dividend_day = None
+            if ex_dividend_day is not None and ex_dividend_day <= today:
+                prior_event = latest_events.get(code)
+                if (
+                    prior_event is None
+                    or ex_dividend_date > prior_event["exDividendDate"]
+                ):
+                    latest_events[code] = {
+                        "exDividendDate": ex_dividend_date,
+                        "dividendPerShare": (
+                            round(cash_per_ten / 10, 8)
+                            if cash_per_ten is not None and cash_per_ten > 0
+                            else None
+                        ),
+                        "plan": str(row.get("IMPL_PLAN_PROFILE") or ""),
+                    }
             try:
                 year = int(report_date[:4])
             except ValueError:
                 continue
             if year not in target_years:
                 continue
-            code = str(row.get("SECURITY_CODE") or "")
-            cash_per_ten = number_or_none(row.get("PRETAX_BONUS_RMB"))
             if len(code) != 6 or cash_per_ten is None or cash_per_ten <= 0:
                 continue
             event_key = (
@@ -1420,6 +1531,7 @@ def fetch_dividends(
     if not found_target_year:
         raise RuntimeError(f"no dividend records found for fiscal year {fiscal_year}")
 
+    latest_fill_targets = fetch_latest_fill_targets(latest_events)
     generated_at = datetime.now(timezone.utc).isoformat()
     write_json(
         DIVIDEND_PATH,
@@ -1435,9 +1547,10 @@ def fetch_dividends(
                 }
                 for code, years in sorted(annual.items())
             },
+            "latestFillTargets": dict(sorted(latest_fill_targets.items())),
         },
     )
-    return totals, annual
+    return totals, annual, latest_fill_targets
 
 
 def calculate_historical_max_dividend_yield(
@@ -1548,12 +1661,16 @@ def main() -> None:
     codes = [item["code"] for item in universe]
     stocks, quote_timestamp = fetch_quotes(universe)
     histories = fetch_three_month_metrics(stocks, quote_timestamp)
-    dividends, annual_dividends = fetch_dividends(fiscal_year, codes)
+    dividends, annual_dividends, latest_fill_targets = fetch_dividends(
+        fiscal_year,
+        codes,
+    )
     recent_annual_ranges = fetch_recent_annual_price_ranges(codes, now)
 
     for code, stock in stocks.items():
         stock["dividendPerShare"] = round(dividends.get(code, 0.0), 8)
         stock["dividendYear"] = fiscal_year
+        stock["latestFillTarget"] = latest_fill_targets.get(code)
         history = histories.get(
             code,
             {"threeMonthChangePct": None, "maxDailyDecline3m": None},

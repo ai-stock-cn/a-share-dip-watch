@@ -1232,6 +1232,47 @@ td.numeric {
   opacity: 0.72;
 }
 
+.latest-fill-target {
+  margin-top: 5px;
+  padding-top: 5px;
+  display: grid;
+  gap: 2px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.latest-fill-target > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.latest-fill-target > span strong,
+.latest-fill-target > span b {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.latest-fill-target small {
+  font-size: 12px;
+}
+
+.latest-fill-target.filled small strong {
+  color: var(--positive);
+}
+
+.latest-fill-target.unfilled small strong {
+  color: var(--severe);
+}
+
+.latest-fill-target.unknown {
+  opacity: 0.72;
+}
+
 .metric-note {
   margin-top: 4px;
 }
