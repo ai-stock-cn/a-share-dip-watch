@@ -335,22 +335,71 @@ const EXTRA_CODES = [
   ...DIVIDEND_ADDED_CODES,
 ];
 
-const LATEST_ADDED_CODES = [
-  "600938",
-];
-
-const REMOVED_CODES = new Set(["600106"]);
+const REMOVED_CODES = new Set([
+  "000404",
+  "000521",
+  "000915",
+  "001368",
+  "002033",
+  "002035",
+  "002228",
+  "002322",
+  "002327",
+  "002404",
+  "002441",
+  "002469",
+  "002582",
+  "002749",
+  "002772",
+  "003012",
+  "300193",
+  "300532",
+  "300864",
+  "600106",
+  "600681",
+  "600817",
+  "600982",
+  "603062",
+  "603096",
+  "603111",
+  "603116",
+  "603165",
+  "603167",
+  "603187",
+  "603309",
+  "603365",
+  "603519",
+  "603551",
+  "603558",
+  "603566",
+  "603600",
+  "603611",
+  "603682",
+  "603689",
+  "603706",
+  "603788",
+  "603801",
+  "603886",
+  "603948",
+  "603967",
+  "605028",
+  "605077",
+  "605337",
+  "605368",
+  "605377",
+]);
 
 const DEFAULT_CODES = [
   ...new Set([...BASE_CODES, ...BANK_CODES, ...EXTRA_CODES]),
-];
+].filter((code) => !REMOVED_CODES.has(code));
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v19",
+  watchlist: "a-share-dip-watch:watchlist:v20",
   starred: "a-share-dip-watch:starred:v1",
   groups: "a-share-dip-watch:groups:v1",
-  previousWatchlist: "a-share-dip-watch:watchlist:v18",
+  previousWatchlist: "a-share-dip-watch:watchlist:v19",
   legacyWatchlists: [
+    "a-share-dip-watch:watchlist:v18",
     "a-share-dip-watch:watchlist:v17",
     "a-share-dip-watch:watchlist:v16",
     "a-share-dip-watch:watchlist:v15",
@@ -570,7 +619,8 @@ function loadStockGroups() {
     seenIds.add(id);
     seenNames.add(nameKey);
     const codes = Array.isArray(group.codes)
-      ? [...new Set(group.codes.filter((code) => /^\d{6}$/.test(code)))]
+      ? [...new Set(group.codes.filter((code) =>
+        /^\d{6}$/.test(code) && !REMOVED_CODES.has(code)))]
       : [];
     return [{ id, name, codes }];
   });
@@ -597,8 +647,8 @@ function loadWatchlist() {
 
   const previous = loadJson(STORAGE_KEYS.previousWatchlist, null);
   if (Array.isArray(previous)) {
-    // Apply requested additions and removals once while preserving other choices.
-    const migrated = [...new Set([...previous, ...LATEST_ADDED_CODES])]
+    // Apply requested removals once while preserving every other user choice.
+    const migrated = [...new Set(previous)]
       .filter((code) => !REMOVED_CODES.has(code));
     saveJson(STORAGE_KEYS.watchlist, migrated);
     return migrated;
