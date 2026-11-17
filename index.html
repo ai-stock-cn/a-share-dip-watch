@@ -237,16 +237,6 @@
                 <option value="filled">有缺口已补</option>
               </select>
             </label>
-            <label class="control-field ma250-filter-field" for="ma250Filter" title="按当前股价跌破 MA250 年线的幅度筛选；区间连续且不重叠，并与其他筛选条件同时生效">
-              <span>年线位置</span>
-              <select id="ma250Filter">
-                <option value="all">全部位置</option>
-                <option value="below">股价在年线下</option>
-                <option value="below8to10">年线下 8%–10%</option>
-                <option value="below10to15">年线下 10%–15%</option>
-                <option value="below15plus">年线下 15%以上</option>
-              </select>
-            </label>
             <div class="control-field price-track-filter-field" title="当前股价在近一年最低价与最高价区间中的位置；最多同时选择两个位置，并与其他筛选条件同时生效">
               <span id="priceTrackFilterLabel">价格位置</span>
               <div id="priceTrackFilter" class="multi-select">
@@ -332,6 +322,16 @@
                 <option value="all">全部</option>
                 <option value="above">周中线上</option>
                 <option value="below">周中线下</option>
+              </select>
+            </label>
+            <label class="control-field ma250-filter-field" for="ma250Filter" title="按当前股价跌破 MA250 年线的幅度筛选；区间连续且不重叠，并与其他筛选条件同时生效">
+              <span>年线位置</span>
+              <select id="ma250Filter">
+                <option value="all">全部位置</option>
+                <option value="below">股价在年线下</option>
+                <option value="below8to10">年线下 8%–10%</option>
+                <option value="below10to15">年线下 10%–15%</option>
+                <option value="below15plus">年线下 15%以上</option>
               </select>
             </label>
             <button id="resetFiltersButton" class="reset-filters-button" type="button" title="清空当前筛选条件并恢复默认排序">
