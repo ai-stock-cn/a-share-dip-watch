@@ -335,6 +335,16 @@ const EXTRA_CODES = [
   ...DIVIDEND_ADDED_CODES,
 ];
 
+const SECURITIES_ADDED_CODES = [
+  "000776",
+  "600958",
+  "600999",
+  "601211",
+  "601555",
+  "601688",
+  "601881",
+];
+
 const REMOVED_CODES = new Set([
   "000404",
   "000521",
@@ -390,15 +400,16 @@ const REMOVED_CODES = new Set([
 ]);
 
 const DEFAULT_CODES = [
-  ...new Set([...BASE_CODES, ...BANK_CODES, ...EXTRA_CODES]),
+  ...new Set([...BASE_CODES, ...BANK_CODES, ...EXTRA_CODES, ...SECURITIES_ADDED_CODES]),
 ].filter((code) => !REMOVED_CODES.has(code));
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v20",
+  watchlist: "a-share-dip-watch:watchlist:v21",
   starred: "a-share-dip-watch:starred:v1",
   groups: "a-share-dip-watch:groups:v1",
-  previousWatchlist: "a-share-dip-watch:watchlist:v19",
+  previousWatchlist: "a-share-dip-watch:watchlist:v20",
   legacyWatchlists: [
+    "a-share-dip-watch:watchlist:v19",
     "a-share-dip-watch:watchlist:v18",
     "a-share-dip-watch:watchlist:v17",
     "a-share-dip-watch:watchlist:v16",
@@ -650,7 +661,7 @@ function loadWatchlist() {
   const previous = loadJson(STORAGE_KEYS.previousWatchlist, null);
   if (Array.isArray(previous)) {
     // Apply requested removals once while preserving every other user choice.
-    const migrated = [...new Set(previous)]
+    const migrated = [...new Set([...previous, ...SECURITIES_ADDED_CODES])]
       .filter((code) => !REMOVED_CODES.has(code));
     saveJson(STORAGE_KEYS.watchlist, migrated);
     return migrated;
