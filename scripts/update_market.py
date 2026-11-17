@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 MARKET_PATH = DATA_DIR / "market.json"
 DIVIDEND_PATH = DATA_DIR / "dividends.json"
+ROE_PATH = DATA_DIR / "roe.json"
 CODES_PATH = DATA_DIR / "codes.json"
 ENTERPRISE_NATURES_PATH = DATA_DIR / "enterprise_natures.json"
 EXPECTED_UNIVERSE_SIZE = 258
@@ -39,6 +40,8 @@ GAP_HISTORY_LIMIT = 250
 GAP_BASIS = "qfq_daily_ohlc_v3"
 MA250_PERIOD = 250
 DIVIDEND_MAX_AGE_SECONDS = 7 * 24 * 60 * 60
+ROE_MAX_AGE_SECONDS = 24 * 60 * 60
+ROE_BASIS = "eastmoney_weighted_roe_v1"
 FILL_TARGET_BASIS = "latest_ex_dividend_previous_unadjusted_close_v1"
 RECENT_ANNUAL_RANGE_BASIS = "qfq_daily_low_high_v2"
 RECENT_ANNUAL_RANGE_HISTORY_LIMIT = 1000
@@ -1359,6 +1362,101 @@ def load_fresh_dividend_cache(
     return None
 
 
+def load_roe_cache(codes: list[str], *, require_fresh: bool) -> dict[str, dict] | None:
+    if not ROE_PATH.exists():
+        return None
+    try:
+        payload = json.loads(ROE_PATH.read_text(encoding="utf-8"))
+        generated_at = datetime.fromisoformat(payload["generatedAt"])
+        age = datetime.now(timezone.utc).timestamp() - generated_at.timestamp()
+        metrics = payload.get("metrics")
+        if (
+            payload.get("basis") != ROE_BASIS
+            or payload.get("codes") != codes
+            or not isinstance(metrics, dict)
+            or (require_fresh and age >= ROE_MAX_AGE_SECONDS)
+        ):
+            return None
+        return {code: metric for code, metric in metrics.items()
+                if code in codes and isinstance(metric, dict)}
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+
+
+def fetch_stock_roe(code: str, current_year: int) -> dict:
+    secucode = f"{code}.SH" if code.startswith("6") else f"{code}.SZ"
+    payload = request_json(
+        "https://datacenter-web.eastmoney.com/api/data/v1/get",
+        {
+            "sortColumns": "REPORT_DATE", "sortTypes": -1,
+            "pageSize": 20, "pageNumber": 1,
+            "reportName": "RPT_F10_FINANCE_MAINFINADATA",
+            "columns": "SECURITY_CODE,REPORT_DATE,REPORT_DATE_NAME,REPORT_TYPE,ROEJQ,NOTICE_DATE",
+            "filter": f'(SECUCODE="{secucode}")',
+            "source": "WEB", "client": "WEB",
+        },
+        retries=3, timeout=20,
+    )
+    rows = (payload.get("result") or {}).get("data") or []
+    normalized: list[dict] = []
+    for row in rows:
+        report_date = str(row.get("REPORT_DATE") or "")[:10]
+        roe = number_or_none(row.get("ROEJQ"))
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", report_date) or roe is None:
+            continue
+        normalized.append({"date": report_date,
+                           "name": str(row.get("REPORT_DATE_NAME") or report_date),
+                           "roe": roe})
+    current = next((row for row in normalized
+                    if row["date"].startswith(f"{current_year}-")), None)
+    annual: dict[str, float] = {}
+    for year in range(current_year - 3, current_year):
+        row = next((item for item in normalized
+                    if item["date"] == f"{year}-12-31"), None)
+        if row is not None:
+            annual[str(year)] = round(row["roe"], 4)
+    return {
+        "currentRoe": round(current["roe"], 4) if current else None,
+        "currentReportDate": current["date"] if current else None,
+        "currentReportName": current["name"] if current else None,
+        "averageRoe3y": round(fmean(annual.values()), 4) if len(annual) == 3 else None,
+        "annualRoe3y": annual,
+        "basis": ROE_BASIS,
+    }
+
+
+def fetch_roe_metrics(codes: list[str], now: datetime) -> dict[str, dict]:
+    cached = load_roe_cache(codes, require_fresh=True)
+    if cached is not None and len(cached) == len(codes):
+        return cached
+    stale = load_roe_cache(codes, require_fresh=False) or {}
+    metrics: dict[str, dict] = {}
+    with ThreadPoolExecutor(max_workers=12) as executor:
+        futures = {executor.submit(fetch_stock_roe, code, now.year): code for code in codes}
+        completed = 0
+        for future in as_completed(futures):
+            code = futures[future]
+            completed += 1
+            try:
+                metrics[code] = future.result()
+            except Exception as error:
+                print(f"ROE warning for {code}: {error}", flush=True)
+                metrics[code] = stale.get(code, {
+                    "currentRoe": None, "currentReportDate": None,
+                    "currentReportName": None, "averageRoe3y": None,
+                    "annualRoe3y": {}, "basis": ROE_BASIS,
+                })
+            if completed % 25 == 0 or completed == len(futures):
+                available = sum(number_or_none(item.get("averageRoe3y")) is not None
+                                for item in metrics.values())
+                print(f"ROE progress: {completed}/{len(futures)}, "
+                      f"{available} three-year averages", flush=True)
+    ordered = {code: metrics[code] for code in codes}
+    write_json(ROE_PATH, {"generatedAt": now.isoformat(), "basis": ROE_BASIS,
+                          "codes": codes, "metrics": ordered})
+    return ordered
+
+
 def fetch_unadjusted_fill_target(code: str, ex_dividend_date: str) -> float:
     ex_day = datetime.strptime(ex_dividend_date, "%Y-%m-%d").date()
     start_day = ex_day - timedelta(days=20)
@@ -1665,12 +1763,14 @@ def main() -> None:
         fiscal_year,
         codes,
     )
+    roe_metrics = fetch_roe_metrics(codes, now)
     recent_annual_ranges = fetch_recent_annual_price_ranges(codes, now)
 
     for code, stock in stocks.items():
         stock["dividendPerShare"] = round(dividends.get(code, 0.0), 8)
         stock["dividendYear"] = fiscal_year
         stock["latestFillTarget"] = latest_fill_targets.get(code)
+        stock["roeMetrics"] = roe_metrics.get(code)
         history = histories.get(
             code,
             {"threeMonthChangePct": None, "maxDailyDecline3m": None},

@@ -507,6 +507,7 @@ const elements = {
   industryFilter: document.querySelector("#industryFilter"),
   ma250Filter: document.querySelector("#ma250Filter"),
   marketCapFilter: document.querySelector("#marketCapFilter"),
+  roeFilter: document.querySelector("#roeFilter"),
   marketStatus: document.querySelector("#marketStatus"),
   nextPageButton: document.querySelector("#nextPageButton"),
   pageSizeSelect: document.querySelector("#pageSizeSelect"),
@@ -560,6 +561,7 @@ const state = {
   industry: "all",
   ma250Position: "all",
   marketCapMin: 0,
+  roeMin: 0,
   period: "daily",
   priceTrackBands: new Set(),
   threshold: 0,
@@ -808,6 +810,18 @@ function quoteFor(code) {
     dividendPerShare: numberOrNull(stock.dividendPerShare),
     dividendYear: numberOrNull(stock.dividendYear),
     latestFillTarget: normalizeLatestFillTarget(stock),
+    roeCurrent: stock.roeMetrics?.basis === "eastmoney_weighted_roe_v1"
+      ? numberOrNull(stock.roeMetrics.currentRoe) : null,
+    roeCurrentReportDate: /^\d{4}-\d{2}-\d{2}$/.test(stock.roeMetrics?.currentReportDate || "")
+      ? stock.roeMetrics.currentReportDate : null,
+    roeCurrentReportName: typeof stock.roeMetrics?.currentReportName === "string"
+      ? stock.roeMetrics.currentReportName : null,
+    roeAverage3y: stock.roeMetrics?.basis === "eastmoney_weighted_roe_v1"
+      ? numberOrNull(stock.roeMetrics.averageRoe3y) : null,
+    roeAnnual3y: stock.roeMetrics?.basis === "eastmoney_weighted_roe_v1" &&
+      stock.roeMetrics.annualRoe3y && typeof stock.roeMetrics.annualRoe3y === "object"
+      ? Object.fromEntries(Object.entries(stock.roeMetrics.annualRoe3y)
+        .map(([year, value]) => [year, numberOrNull(value)])) : {},
     consecutiveDividendYears: numberOrNull(stock.consecutiveDividendYears),
     historicalMaxDividendYield10y: numberOrNull(
       stock.historicalMaxDividendYield10y,
@@ -1251,6 +1265,11 @@ function rowTemplate(quote) {
     : consecutiveDividendYears >= 10
       ? `截至 ${quote.dividendYear} 年度，近 10 个完整报告年度均有正分红；当前数据窗口为 10 年，实际连续年数可能更长`
       : `截至 ${quote.dividendYear} 年度，已连续 ${consecutiveDividendYears} 个报告年度有正分红；遇到首个缺失或零分红年度即停止计数`;
+  const roeYears = Object.keys(quote.roeAnnual3y).sort();
+  const roeAnnualText = roeYears.length
+    ? roeYears.map((year) => `${year}：${formatYield(quote.roeAnnual3y[year])}`).join("；")
+    : "最近 3 个完整年度数据不完整";
+  const roeTitle = `加权净资产收益率（ROE）；今年为最新已披露报告期累计值：${quote.roeCurrentReportName || "待披露"}${quote.roeCurrentReportDate ? `（${quote.roeCurrentReportDate}）` : ""} ${formatYield(quote.roeCurrent)}；近3年均值为最近 3 个完整年度的算术平均值：${roeAnnualText}`;
   const recentYieldRows = quote.recentDividendYields3y
     .map((item) => {
       const yieldText = formatYield(item.yieldPct);
@@ -1322,6 +1341,14 @@ function rowTemplate(quote) {
           <span class="metric-note-peak-price">${escapeHtml(historicalPriceText)}</span>
           <span class="consecutive-dividend-years" title="${escapeHtml(consecutiveDividendTitle)}">${escapeHtml(consecutiveDividendText)}</span>
           <span class="recent-yield-list" aria-label="最近三年历史股息率">${recentYieldRows}</span>
+        </div>
+      </td>
+      <td class="roe-cell">
+        <div class="roe-metrics" title="${escapeHtml(roeTitle)}">
+          <span><small>今年</small><strong>${escapeHtml(formatYield(quote.roeCurrent))}</strong></span>
+          <small class="roe-report">${escapeHtml(quote.roeCurrentReportName || "最新报告待披露")}</small>
+          <span><small>近3年均值</small><strong>${escapeHtml(formatYield(quote.roeAverage3y))}</strong></span>
+          <small class="roe-report">${escapeHtml(roeYears.length === 3 ? roeYears.join("–") : "完整年度不足")}</small>
         </div>
       </td>
       ${annualYearCells}
@@ -1525,6 +1552,10 @@ function matchesFilters(quote) {
       return false;
     }
   }
+  if (state.roeMin > 0 &&
+      (!Number.isFinite(quote.roeAverage3y) || quote.roeAverage3y <= state.roeMin)) {
+    return false;
+  }
   if (
     state.marketCapMin > 0 &&
     (!Number.isFinite(quote.marketCapYi) || quote.marketCapYi < state.marketCapMin)
@@ -1600,15 +1631,15 @@ function render() {
 
   if (!state.codes.length) {
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="10">暂无自选股</td></tr>`;
+      <tr class="empty-row"><td colspan="11">暂无自选股</td></tr>`;
   } else if (!availableQuotes.length && state.loading) {
     elements.stockRows.innerHTML = `
       <tr class="loading-row">
-        <td colspan="10"><span class="spinner" aria-hidden="true"></span>正在读取行情</td>
+        <td colspan="11"><span class="spinner" aria-hidden="true"></span>正在读取行情</td>
       </tr>`;
   } else if (!availableQuotes.length) {
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="10">行情暂不可用</td></tr>`;
+      <tr class="empty-row"><td colspan="11">行情暂不可用</td></tr>`;
   } else if (!filteredQuotes.length) {
     const waitingForHistory = state.period === "largestDaily" && availableQuotes.some(
       (quote) => quote.historyAsOf !== shanghaiParts().day,
@@ -1625,7 +1656,7 @@ function render() {
     if (state.activeGroupId === "ungrouped") emptyMessage = "当前没有未分组的股票";
     if (state.searchQuery.trim()) emptyMessage = "没有找到匹配的股票";
     elements.stockRows.innerHTML = `
-      <tr class="empty-row"><td colspan="10">${escapeHtml(emptyMessage)}</td></tr>`;
+      <tr class="empty-row"><td colspan="11">${escapeHtml(emptyMessage)}</td></tr>`;
   } else {
     elements.stockRows.innerHTML = pageQuotes.map(rowTemplate).join("");
   }
@@ -1646,6 +1677,7 @@ function render() {
   elements.twoYearLowFilter.value = state.twoYearLowRange;
   elements.ma250Filter.value = state.ma250Position;
   elements.marketCapFilter.value = String(state.marketCapMin);
+  elements.roeFilter.value = String(state.roeMin);
   updatePriceTrackFilterControl();
   elements.dividendYieldFilter.value = String(state.dividendYieldMin);
   elements.dividendYearsFilter.value = state.dividendYears;
@@ -2181,6 +2213,7 @@ function resetFilters() {
   state.twoYearLowRange = "all";
   state.ma250Position = "all";
   state.marketCapMin = 0;
+  state.roeMin = 0;
   state.priceTrackBands.clear();
   state.dividendYieldMin = 0;
   state.dividendYears = "all";
@@ -2206,6 +2239,7 @@ function showDeclineShortcut(threshold) {
   state.twoYearLowRange = "all";
   state.ma250Position = "all";
   state.marketCapMin = 0;
+  state.roeMin = 0;
   state.priceTrackBands.clear();
   state.dividendYieldMin = 0;
   state.dividendYears = "all";
@@ -2302,6 +2336,12 @@ elements.dividendYieldFilter.addEventListener("change", (event) => {
 elements.marketCapFilter.addEventListener("change", (event) => {
   const minimum = Number(event.target.value);
   state.marketCapMin = [0, 100, 500, 1000].includes(minimum) ? minimum : 0;
+  state.page = 1;
+  render();
+});
+elements.roeFilter.addEventListener("change", (event) => {
+  const minimum = Number(event.target.value);
+  state.roeMin = [0, 10, 15, 20].includes(minimum) ? minimum : 0;
   state.page = 1;
   render();
 });

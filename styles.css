@@ -771,6 +771,32 @@ td.numeric {
   font-size: 14px;
 }
 
+.roe-column,
+.roe-cell {
+  width: 9%;
+  text-align: right;
+}
+
+.roe-column { font-size: 14px; }
+
+.roe-metrics {
+  display: grid;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.roe-metrics > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.roe-metrics small { color: var(--ink-muted); font-size: 12px; }
+.roe-metrics strong { color: var(--ink); font-size: 14px; font-weight: 650; }
+.roe-metrics .roe-report { text-align: right; white-space: nowrap; }
+
 .annual-year-column,
 .annual-year-cell {
   width: 11%;
@@ -2012,6 +2038,13 @@ noscript {
   .history-yield-column,
   .history-yield-cell {
     width: 13%;
+    padding-right: 4px;
+    padding-left: 4px;
+  }
+
+  .roe-column,
+  .roe-cell {
+    width: 9%;
     padding-right: 4px;
     padding-left: 4px;
   }

@@ -9,10 +9,10 @@
     />
     <meta name="theme-color" content="#17201c" />
     <title>A股价值投资</title>
-    <link rel="stylesheet" href="./styles.css?v=67" />
+    <link rel="stylesheet" href="./styles.css?v=68" />
     <script defer src="./auth.js?v=2"></script>
     <script defer src="./live-market.js?v=35"></script>
-    <script defer src="./app.js?v=81"></script>
+    <script defer src="./app.js?v=82"></script>
   </head>
   <body class="auth-locked">
     <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -286,6 +286,15 @@
                 <option value="1000">1000 亿以上</option>
               </select>
             </label>
+            <label class="control-field roe-filter-field" for="roeFilter" title="按最近 3 个完整年度加权净资产收益率（ROE）的算术平均值筛选；与其他筛选条件同时生效">
+              <span>ROE筛选</span>
+              <select id="roeFilter">
+                <option value="0">全部 ROE</option>
+                <option value="10">近3年均值 &gt;10%</option>
+                <option value="15">近3年均值 &gt;15%</option>
+                <option value="20">近3年均值 &gt;20%</option>
+              </select>
+            </label>
             <label class="control-field" for="industryFilter">
               <span>行业</span>
               <select id="industryFilter">
@@ -351,6 +360,7 @@
                 <th scope="col">股票</th>
                 <th scope="col" class="weekly-boll-column" title="周线 BOLL(20, 2σ) 下轨、中轨和上轨，保留三位小数">周线 BOLL</th>
                 <th scope="col" class="history-yield-column">历史股息率</th>
+                <th scope="col" class="roe-column" title="今年最新报告期加权 ROE，以及最近 3 个完整年度加权 ROE 的算术平均值">ROE</th>
                 <th scope="col" class="annual-year-column" data-annual-year-header>2024 高低价</th>
                 <th scope="col" class="annual-year-column" data-annual-year-header>2025 高低价</th>
                 <th scope="col" class="annual-year-column" data-annual-year-header>2026 高低价</th>
@@ -369,7 +379,7 @@
             </thead>
             <tbody id="stockRows">
               <tr class="loading-row">
-                <td colspan="10">
+                <td colspan="11">
                   <span class="spinner" aria-hidden="true"></span>
                   正在读取行情
                 </td>
