@@ -1572,8 +1572,13 @@ function matchesFilters(quote) {
   if (state.ma250Position !== "all") {
     const distance = ma250DistancePct(quote);
     if (!Number.isFinite(distance)) return false;
-    if (state.ma250Position === "above" && distance < 0) return false;
     if (state.ma250Position === "below" && distance >= 0) return false;
+    const belowDistance = -distance;
+    if (state.ma250Position === "below8to10" &&
+        !(belowDistance >= 8 && belowDistance < 10)) return false;
+    if (state.ma250Position === "below10to15" &&
+        !(belowDistance >= 10 && belowDistance < 15)) return false;
+    if (state.ma250Position === "below15plus" && belowDistance < 15) return false;
   }
   if (state.weeklyMiddlePosition !== "all") {
     const weeklyMiddle = quote.bollTracks.week?.middle;
@@ -2298,7 +2303,9 @@ elements.twoYearLowFilter.addEventListener("change", (event) => {
   render();
 });
 elements.ma250Filter.addEventListener("change", (event) => {
-  state.ma250Position = ["all", "above", "below"].includes(event.target.value)
+  state.ma250Position = [
+    "all", "below", "below8to10", "below10to15", "below15plus",
+  ].includes(event.target.value)
     ? event.target.value : "all";
   state.page = 1;
   render();

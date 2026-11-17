@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="./styles.css?v=68" />
     <script defer src="./auth.js?v=2"></script>
     <script defer src="./live-market.js?v=35"></script>
-    <script defer src="./app.js?v=82"></script>
+    <script defer src="./app.js?v=83"></script>
   </head>
   <body class="auth-locked">
     <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
@@ -237,12 +237,14 @@
                 <option value="filled">有缺口已补</option>
               </select>
             </label>
-            <label class="control-field ma250-filter-field" for="ma250Filter" title="当前股价相对 MA250 年线的位置；与其他筛选条件同时生效">
+            <label class="control-field ma250-filter-field" for="ma250Filter" title="按当前股价跌破 MA250 年线的幅度筛选；区间连续且不重叠，并与其他筛选条件同时生效">
               <span>年线位置</span>
               <select id="ma250Filter">
                 <option value="all">全部位置</option>
-                <option value="above">股价在年线上</option>
                 <option value="below">股价在年线下</option>
+                <option value="below8to10">年线下 8%–10%</option>
+                <option value="below10to15">年线下 10%–15%</option>
+                <option value="below15plus">年线下 15%以上</option>
               </select>
             </label>
             <div class="control-field price-track-filter-field" title="当前股价在近一年最低价与最高价区间中的位置；最多同时选择两个位置，并与其他筛选条件同时生效">
