@@ -264,5 +264,7 @@
   {"code":"601555","name":"东吴证券","category":"非银金融","industry":"非银金融","industryDetail":"非银金融 — 证券Ⅱ"},
   {"code":"601688","name":"华泰证券","category":"非银金融","industry":"非银金融","industryDetail":"非银金融 — 证券Ⅱ"},
   {"code":"601881","name":"中国银河","category":"非银金融","industry":"非银金融","industryDetail":"非银金融 — 证券Ⅱ"},
-  {"code":"601216","name":"君正集团","category":"基础化工","industry":"基础化工","industryDetail":"基础化工 — 化学原料"}
+  {"code":"601216","name":"君正集团","category":"基础化工","industry":"基础化工","industryDetail":"基础化工 — 化学原料"},
+  {"code":"600332","name":"白云山","category":"医药生物","industry":"医药生物","industryDetail":"医药生物 — 中药Ⅱ"},
+  {"code":"600612","name":"老凤祥","category":"纺织服饰","industry":"纺织服饰","industryDetail":"纺织服饰 — 饰品"}
 ]

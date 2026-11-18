@@ -345,7 +345,8 @@ const SECURITIES_ADDED_CODES = [
   "601881",
 ];
 
-const LATEST_ADDED_CODES = ["601216"];
+const RECENT_ADDED_CODES = ["601216", "600332", "600612"];
+const LATEST_ADDED_CODES = ["600332", "600612"];
 
 const REMOVED_CODES = new Set([
   "000404",
@@ -404,16 +405,17 @@ const REMOVED_CODES = new Set([
 const DEFAULT_CODES = [
   ...new Set([
     ...BASE_CODES, ...BANK_CODES, ...EXTRA_CODES,
-    ...SECURITIES_ADDED_CODES, ...LATEST_ADDED_CODES,
+    ...SECURITIES_ADDED_CODES, ...RECENT_ADDED_CODES,
   ]),
 ].filter((code) => !REMOVED_CODES.has(code));
 
 const STORAGE_KEYS = {
-  watchlist: "a-share-dip-watch:watchlist:v22",
+  watchlist: "a-share-dip-watch:watchlist:v23",
   starred: "a-share-dip-watch:starred:v1",
   groups: "a-share-dip-watch:groups:v1",
-  previousWatchlist: "a-share-dip-watch:watchlist:v21",
+  previousWatchlist: "a-share-dip-watch:watchlist:v22",
   legacyWatchlists: [
+    "a-share-dip-watch:watchlist:v21",
     "a-share-dip-watch:watchlist:v20",
     "a-share-dip-watch:watchlist:v19",
     "a-share-dip-watch:watchlist:v18",
