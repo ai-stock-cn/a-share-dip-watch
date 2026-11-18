@@ -263,5 +263,6 @@
   {"code":"601211","name":"国泰海通","category":"非银金融","industry":"非银金融","industryDetail":"非银金融 — 证券Ⅱ"},
   {"code":"601555","name":"东吴证券","category":"非银金融","industry":"非银金融","industryDetail":"非银金融 — 证券Ⅱ"},
   {"code":"601688","name":"华泰证券","category":"非银金融","industry":"非银金融","industryDetail":"非银金融 — 证券Ⅱ"},
-  {"code":"601881","name":"中国银河","category":"非银金融","industry":"非银金融","industryDetail":"非银金融 — 证券Ⅱ"}
+  {"code":"601881","name":"中国银河","category":"非银金融","industry":"非银金融","industryDetail":"非银金融 — 证券Ⅱ"},
+  {"code":"601216","name":"君正集团","category":"基础化工","industry":"基础化工","industryDetail":"基础化工 — 化学原料"}
 ]
