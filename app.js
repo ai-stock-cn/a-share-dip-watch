@@ -413,6 +413,9 @@ const STORAGE_KEYS = {
   watchlist: "a-share-dip-watch:watchlist:v23",
   starred: "a-share-dip-watch:starred:v1",
   groups: "a-share-dip-watch:groups:v1",
+  priceAlerts: "a-share-dip-watch:price-alerts:v1",
+  alertConfig: "a-share-dip-watch:alert-config:v1",
+  alertSent: "a-share-dip-watch:alert-sent:v1",
   previousWatchlist: "a-share-dip-watch:watchlist:v22",
   legacyWatchlists: [
     "a-share-dip-watch:watchlist:v21",
@@ -497,6 +500,21 @@ const elements = {
   annualYearHeaders: document.querySelectorAll("[data-annual-year-header]"),
   alertCount: document.querySelector("#alertCount"),
   alertShortcut: document.querySelector("#alertShortcut"),
+  alertButton: document.querySelector("#alertButton"),
+  alertBadge: document.querySelector("#alertBadge"),
+  alertDialog: document.querySelector("#alertDialog"),
+  alertForm: document.querySelector("#alertForm"),
+  alertStockInput: document.querySelector("#alertStockInput"),
+  alertStockOptions: document.querySelector("#alertStockOptions"),
+  alertTargetInput: document.querySelector("#alertTargetInput"),
+  alertDropInput: document.querySelector("#alertDropInput"),
+  alertFormError: document.querySelector("#alertFormError"),
+  alertList: document.querySelector("#alertList"),
+  barkUrlInput: document.querySelector("#barkUrlInput"),
+  alertEnabledInput: document.querySelector("#alertEnabledInput"),
+  browserNotifyInput: document.querySelector("#browserNotifyInput"),
+  testBarkButton: document.querySelector("#testBarkButton"),
+  closeAlertButton: document.querySelector("#closeAlertButton"),
   bollBandFilter: document.querySelector("#bollBandFilter"),
   bollPeriodFilter: document.querySelector("#bollPeriodFilter"),
   closeDialogButton: document.querySelector("#closeDialogButton"),
@@ -592,6 +610,8 @@ const state = {
   starredCodes: loadStarredCodes(),
   starredOnly: false,
   stockGroups: loadStockGroups(),
+  priceAlerts: loadPriceAlerts(),
+  alertConfig: loadAlertConfig(),
   groupDialogCode: null,
   pendingGroupStockCode: null,
   weeklyMiddlePosition: "all",
@@ -656,6 +676,293 @@ function saveStockGroups() {
       codes: [...new Set(group.codes)].sort(),
     })),
   );
+}
+
+function loadPriceAlerts() {
+  const saved = loadJson(STORAGE_KEYS.priceAlerts, null);
+  if (!saved || typeof saved !== "object" || Array.isArray(saved)) return {};
+  const alerts = {};
+  for (const [code, value] of Object.entries(saved)) {
+    if (!/^\d{6}$/.test(code) || !value || typeof value !== "object") continue;
+    const target = numberOrNull(value.target);
+    const dropPct = numberOrNull(value.dropPct);
+    if (target === null && dropPct === null) continue;
+    alerts[code] = {
+      target: target !== null && target > 0 ? target : null,
+      dropPct: dropPct !== null && dropPct > 0 ? Math.abs(dropPct) : null,
+    };
+  }
+  return alerts;
+}
+
+function savePriceAlerts() {
+  saveJson(STORAGE_KEYS.priceAlerts, state.priceAlerts);
+}
+
+function loadAlertConfig() {
+  const saved = loadJson(STORAGE_KEYS.alertConfig, null);
+  return {
+    barkUrl: typeof saved?.barkUrl === "string" ? saved.barkUrl.trim() : "",
+    enabled: saved?.enabled !== false,
+    browserNotify: Boolean(saved?.browserNotify),
+  };
+}
+
+function saveAlertConfig() {
+  saveJson(STORAGE_KEYS.alertConfig, state.alertConfig);
+}
+
+function alertCount() {
+  return Object.keys(state.priceAlerts).length;
+}
+
+function renderAlertBadge() {
+  if (!elements.alertBadge) return;
+  const count = alertCount();
+  elements.alertBadge.textContent = String(count);
+  elements.alertBadge.hidden = count === 0;
+}
+
+function alertQuoteFor(code) {
+  const stored = state.market?.stocks?.[code];
+  if (!stored) return null;
+  const price = numberOrNull(stored.price);
+  const changePct = numberOrNull(stored.changePct);
+  if (!(price > 0) || changePct === null) return null;
+  const previousClose = numberOrNull(stored.previousClose);
+  const quoteTime = stockQuoteTime(stored);
+  const status = quoteStatus(quoteTime);
+  return {
+    code,
+    name: stored.name || code,
+    price,
+    changePct,
+    previousClose:
+      previousClose !== null && previousClose > 0
+        ? previousClose
+        : price / (1 + changePct / 100),
+    quoteTime,
+    isToday: status.day === shanghaiParts().day,
+  };
+}
+
+function formatAlertChange(value) {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
+}
+
+function alertBodyText(quote, condition) {
+  return [
+    `现价：¥${quote.price.toFixed(2)}`,
+    `涨跌：${formatAlertChange(quote.price - quote.previousClose)}（${formatAlertChange(quote.changePct)}%）`,
+    condition,
+    `行情时间：${quote.quoteTime || "--"}`,
+  ].join("\n");
+}
+
+async function deliverBark(title, body) {
+  const barkUrl = (state.alertConfig.barkUrl || "").trim();
+  if (!barkUrl) return false;
+  try {
+    const response = await fetch(barkUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ title, body, group: "A股自选提醒" }),
+    });
+    const result = await response.json().catch(() => null);
+    if (response.ok && (!result || result.code === undefined || result.code === 200)) {
+      return true;
+    }
+  } catch (error) {
+    // 跨域或网络异常时退回到不透明 GET 请求
+  }
+  try {
+    const base = barkUrl.endsWith("/") ? barkUrl : `${barkUrl}/`;
+    await fetch(`${base}${encodeURIComponent(title)}/${encodeURIComponent(body)}`, {
+      mode: "no-cors",
+    });
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function pushAlertNotification(title, body) {
+  const delivered = await deliverBark(title, body);
+  if (state.alertConfig.browserNotify && "Notification" in window) {
+    if (Notification.permission === "granted") {
+      try {
+        new Notification(title, { body, tag: title });
+      } catch (error) {
+        // 忽略浏览器通知失败
+      }
+    }
+  }
+  return delivered;
+}
+
+function loadSentAlerts(today) {
+  const saved = loadJson(STORAGE_KEYS.alertSent, null);
+  if (!saved || saved.date !== today || !saved.items || typeof saved.items !== "object") {
+    return {};
+  }
+  return saved.items;
+}
+
+function evaluatePriceAlerts() {
+  if (!state.alertConfig.enabled) return;
+  const codes = Object.keys(state.priceAlerts);
+  if (codes.length === 0) return;
+  const today = shanghaiParts().day;
+  const sent = loadSentAlerts(today);
+  let dirty = false;
+
+  for (const code of codes) {
+    const alert = state.priceAlerts[code];
+    const quote = alertQuoteFor(code);
+    if (!quote || !quote.isToday) continue;
+
+    if (alert.target !== null && quote.price <= alert.target) {
+      const key = `${code}:target`;
+      if (!sent[key]) {
+        sent[key] = Date.now();
+        dirty = true;
+        const title = `${quote.name} 跌破 ¥${alert.target.toFixed(2)}`;
+        void pushAlertNotification(
+          title,
+          alertBodyText(quote, `提醒条件：股价 ≤ ¥${alert.target.toFixed(2)}`),
+        ).then((delivered) => {
+          if (delivered) showToast(title);
+        });
+      }
+    }
+
+    if (alert.dropPct !== null && quote.changePct <= -alert.dropPct) {
+      const key = `${code}:drop`;
+      if (!sent[key]) {
+        sent[key] = Date.now();
+        dirty = true;
+        const title = `${quote.name} 跌幅达到 ${alert.dropPct}%`;
+        void pushAlertNotification(
+          title,
+          alertBodyText(quote, `提醒条件：当日跌幅 ≥ ${alert.dropPct}%`),
+        ).then((delivered) => {
+          if (delivered) showToast(title);
+        });
+      }
+    }
+  }
+
+  if (dirty) saveJson(STORAGE_KEYS.alertSent, { date: today, items: sent });
+}
+
+function renderAlertList() {
+  if (!elements.alertList) return;
+  const rows = Object.entries(state.priceAlerts).map(([code, alert]) => {
+    const quote = alertQuoteFor(code);
+    const name = state.market?.stocks?.[code]?.name || code;
+    const conditions = [];
+    if (alert.target !== null) conditions.push(`≤ ¥${alert.target.toFixed(2)}`);
+    if (alert.dropPct !== null) conditions.push(`跌幅 ≥ ${alert.dropPct}%`);
+    const priceText = quote
+      ? `现价 ¥${quote.price.toFixed(2)}（${formatAlertChange(quote.changePct)}%）`
+      : "行情待更新";
+    return `<div class="alert-item">
+      <div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(code)} · ${escapeHtml(priceText)}</small></div>
+      <span class="alert-condition">${escapeHtml(conditions.join(" / "))}</span>
+      <button class="icon-button subtle" type="button" data-remove-alert="${escapeHtml(code)}" title="删除提醒" aria-label="删除 ${escapeHtml(name)} 的提醒">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+      </button>
+    </div>`;
+  });
+  elements.alertList.innerHTML = rows.length
+    ? rows.join("")
+    : '<p class="alert-empty">还没有提醒。选一只股票，填目标价或跌幅后保存。</p>';
+}
+
+function renderAlertStockOptions() {
+  if (!elements.alertStockOptions) return;
+  elements.alertStockOptions.innerHTML = Object.entries(state.market?.stocks || {})
+    .map(([code, stock]) =>
+      `<option value="${escapeHtml(stock.name || code)}">${escapeHtml(code)}</option>`)
+    .join("");
+}
+
+function resolveAlertCode(value) {
+  const query = normalizeStockSearch(value);
+  if (!query) return null;
+  for (const [code, stock] of Object.entries(state.market?.stocks || {})) {
+    if (code === query || normalizeStockSearch(stock.name || "") === query) return code;
+  }
+  return findMatchingStocks(value)[0]?.code || null;
+}
+
+function openAlertDialog() {
+  elements.alertStockInput.value = "";
+  elements.alertTargetInput.value = "";
+  elements.alertDropInput.value = "";
+  elements.alertFormError.textContent = "";
+  elements.barkUrlInput.value = state.alertConfig.barkUrl;
+  elements.alertEnabledInput.checked = state.alertConfig.enabled;
+  elements.browserNotifyInput.checked = state.alertConfig.browserNotify;
+  renderAlertStockOptions();
+  renderAlertList();
+  elements.alertDialog.showModal();
+  elements.alertStockInput.focus();
+}
+
+function saveAlertFromForm(event) {
+  event.preventDefault();
+  elements.alertFormError.textContent = "";
+  const code = resolveAlertCode(elements.alertStockInput.value);
+  if (!code) {
+    elements.alertFormError.textContent = "没找到这只股票，试试输入完整名称或 6 位代码";
+    return;
+  }
+  const target = numberOrNull(elements.alertTargetInput.value);
+  const dropPct = numberOrNull(elements.alertDropInput.value);
+  if (target === null && dropPct === null) {
+    elements.alertFormError.textContent = "目标价和跌幅至少填一个";
+    return;
+  }
+  if (target !== null && target <= 0) {
+    elements.alertFormError.textContent = "目标价要大于 0";
+    return;
+  }
+  if (dropPct !== null && dropPct <= 0) {
+    elements.alertFormError.textContent = "跌幅要大于 0";
+    return;
+  }
+  state.priceAlerts[code] = {
+    target: target !== null && target > 0 ? target : null,
+    dropPct: dropPct !== null && dropPct > 0 ? Math.abs(dropPct) : null,
+  };
+  savePriceAlerts();
+  elements.alertDialog.close();
+  renderAlertList();
+  render();
+  showToast(`已保存 ${state.market?.stocks?.[code]?.name || code} 的提醒`);
+  evaluatePriceAlerts();
+}
+
+async function sendTestPush() {
+  state.alertConfig.barkUrl = elements.barkUrlInput.value.trim();
+  state.alertConfig.enabled = elements.alertEnabledInput.checked;
+  state.alertConfig.browserNotify = elements.browserNotifyInput.checked;
+  saveAlertConfig();
+  if (!state.alertConfig.barkUrl) {
+    elements.alertFormError.textContent = "先填 Bark 推送地址";
+    return;
+  }
+  elements.testBarkButton.disabled = true;
+  elements.alertFormError.textContent = "正在发送…";
+  const ok = await pushAlertNotification(
+    "A股看板测试推送",
+    `收到这条说明推送已配置成功。\n时间：${new Date().toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}`,
+  );
+  elements.testBarkButton.disabled = false;
+  elements.alertFormError.textContent = ok
+    ? "已发送，看看手机有没有收到"
+    : "发送失败，检查地址是否完整（通常以 / 结尾）";
 }
 
 function groupsForCode(code) {
@@ -1758,6 +2065,7 @@ function render() {
   elements.previousPageButton.disabled = state.page <= 1;
   elements.nextPageButton.disabled = state.page >= totalPages;
   elements.stockCount.textContent = String(state.codes.length);
+  renderAlertBadge();
   elements.severeDeclineCount.textContent = String(
     availableQuotes.filter((quote) => quote.changePct <= -5).length,
   );
@@ -1957,6 +2265,7 @@ async function refresh({ automatic = false } = {}) {
     state.liveError = "";
     state.missingQuotes = result.failedCount + olderQuotes;
     saveJson(STORAGE_KEYS.market, state.market);
+    evaluatePriceAlerts();
   } catch (error) {
     state.liveError = error.message || "行情更新失败";
     if (!automatic) showToast(state.liveError);
@@ -2492,6 +2801,36 @@ elements.stockGroupDialog.addEventListener("click", (event) => {
 });
 elements.stockGroupDialog.addEventListener("close", () => {
   state.groupDialogCode = null;
+});
+elements.alertButton.addEventListener("click", openAlertDialog);
+elements.closeAlertButton.addEventListener("click", () => elements.alertDialog.close());
+elements.alertDialog.addEventListener("click", (event) => {
+  if (event.target === elements.alertDialog) elements.alertDialog.close();
+});
+elements.alertForm.addEventListener("submit", saveAlertFromForm);
+elements.testBarkButton.addEventListener("click", sendTestPush);
+elements.alertList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-remove-alert]");
+  if (!button) return;
+  delete state.priceAlerts[button.dataset.removeAlert];
+  savePriceAlerts();
+  renderAlertList();
+  render();
+});
+elements.alertDialog.addEventListener("close", () => {
+  state.alertConfig.barkUrl = elements.barkUrlInput.value.trim();
+  state.alertConfig.enabled = elements.alertEnabledInput.checked;
+  state.alertConfig.browserNotify = elements.browserNotifyInput.checked;
+  saveAlertConfig();
+});
+elements.browserNotifyInput.addEventListener("change", () => {
+  if (
+    elements.browserNotifyInput.checked &&
+    "Notification" in window &&
+    Notification.permission === "default"
+  ) {
+    void Notification.requestPermission();
+  }
 });
 elements.stockSuggestionPanel.addEventListener("click", (event) => {
   const button = event.target.closest("[data-stock-suggestion]");
