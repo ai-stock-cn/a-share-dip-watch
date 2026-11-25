@@ -641,6 +641,10 @@ const elements = {
   weeklyMiddleFilter: document.querySelector("#weeklyMiddleFilter"),
 };
 
+const DEFAULT_PRICE_ALERTS = {
+  601318: { target: 53, dropPct: 3 },
+};
+
 const state = {
   codes: loadWatchlist(),
   market: loadJson(STORAGE_KEYS.market, null),
@@ -741,7 +745,13 @@ function saveStockGroups() {
 
 function loadPriceAlerts() {
   const saved = loadJson(STORAGE_KEYS.priceAlerts, null);
-  if (!saved || typeof saved !== "object" || Array.isArray(saved)) return {};
+  if (!saved || typeof saved !== "object" || Array.isArray(saved)) {
+    const seeded = Object.fromEntries(
+      Object.entries(DEFAULT_PRICE_ALERTS).map(([code, alert]) => [code, { ...alert }]),
+    );
+    saveJson(STORAGE_KEYS.priceAlerts, seeded);
+    return seeded;
+  }
   const alerts = {};
   for (const [code, value] of Object.entries(saved)) {
     if (!/^\d{6}$/.test(code) || !value || typeof value !== "object") continue;
